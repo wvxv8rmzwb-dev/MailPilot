@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MailPilot Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ffffff; --paper2:#f4f4f3; --ink:#010100; --muted:#75757d; --border:#e6e5e3;
+  --accent:#2a2ecd; --accent-text:#fff; --accent-soft:#ebe9fb;
+  --ok:#1a7f4e; --ok-soft:#e2f1e8; --warn:#a16207; --warn-soft:#f6eeda;
+  --err:#b3372e; --err-soft:#f8e6e4; --grid:rgba(0,0,0,.04); --field:#ffffff;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
+  --accent:#feca04; --accent-text:#111100; --accent-soft:#2b2410;
+  --ok:#4cc38a; --ok-soft:#182720; --warn:#e0a33e; --warn-soft:#2b2413;
+  --err:#e5655c; --err-soft:#31201e; --grid:rgba(255,255,255,.05); --field:#1a1a1f;
+}}
+:root[data-theme="dark"]{
+  --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
+  --accent:#feca04; --accent-text:#111100; --accent-soft:#2b2410;
+  --ok:#4cc38a; --ok-soft:#182720; --warn:#e0a33e; --warn-soft:#2b2413;
+  --err:#e5655c; --err-soft:#31201e; --grid:rgba(255,255,255,.05); --field:#1a1a1f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  height:100%; background:var(--paper); color:var(--ink);
+  font-family:"Inter",system-ui,sans-serif; font-size:14.5px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; position:relative;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size:44px 44px;
+}
+.app{position:relative; z-index:1; display:grid; grid-template-columns:216px 1fr; min-height:100%}
+
+/* ---------- Sidebar ---------- */
+.side{
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column; padding:22px 14px; gap:3px;
+}
+.brand{display:flex; align-items:center; gap:10px; padding:0 12px 22px}
+.brand-mark{width:30px;height:30px;flex:none;color:var(--ink)}
+.brand-mark svg{width:100%;height:100%;display:block}
+.brand-name{font-family:"Instrument Serif",serif;font-size:21px;letter-spacing:-.01em}
+.brand-name::after{content:".";color:var(--accent)}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:99px;
+  color:var(--muted);font-weight:500;cursor:pointer;border:none;background:none;
+  font-size:13.5px;width:100%;text-align:left;font-family:inherit;transition:background .15s,color .15s;
+}
+.nav-item svg{width:16px;height:16px;flex:none}
+.nav-item:hover{color:var(--ink);background:var(--paper2)}
+.nav-item.active{background:var(--ink);color:var(--paper);font-weight:600}
+.nav-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.side-foot{margin-top:auto;padding:14px 12px 2px;border-top:1px solid var(--border)}
+.daemon{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.daemon-cat{width:15px;height:15px;flex:none;color:var(--ink)}
+.daemon.off .daemon-cat{opacity:.35}
+.side-theme{
+  margin-top:12px;width:100%;padding:6px 11px;border-radius:99px;border:1px solid var(--border);
+  background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;
+}
+.side-theme:hover{color:var(--ink);border-color:var(--ink)}
+
+/* ---------- Main ---------- */
+.main{padding:30px 36px 56px;max-width:1080px;width:100%}
+.page-head{margin-bottom:24px}
+.page-head h1{font-family:"Instrument Serif",serif;font-weight:400;font-size:34px;letter-spacing:-.01em;line-height:1.1}
+.page-head h1 em{font-style:italic;color:var(--accent)}
+.page-head p{color:var(--muted);font-size:13.5px;margin-top:6px}
+.panel{background:var(--paper);border:1px solid var(--border);border-radius:14px}
+.view{display:none}.view.active{display:block}
+
+/* Composer */
+.composer{display:grid;grid-template-columns:1fr 300px;gap:22px;align-items:start}
+.form-card{padding:22px 24px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+.field .hint{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+input[type=text],input[type=email],input[type=password],input[type=datetime-local],select,textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;
+  background:var(--field);color:var(--ink);font:inherit;font-size:14px;transition:border-color .15s;
+}
+textarea{resize:vertical;min-height:130px;line-height:1.55;font-family:"IBM Plex Mono",monospace;font-size:12.6px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;align-items:center}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;padding:3px 10px;border-radius:99px;
+  border:1px solid var(--border);background:var(--paper2);color:var(--muted);cursor:pointer;
+}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip-ins{background:none;border-color:transparent;color:var(--accent);font-size:11px;padding:2px 4px;cursor:default}
+.mode-toggle{display:flex;gap:4px;border:1px solid var(--border);border-radius:99px;padding:3px;width:fit-content;background:var(--paper2)}
+.mode-toggle button{padding:5px 13px;border-radius:99px;border:none;background:none;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+.mode-toggle button.on{background:var(--ink);color:var(--paper);font-weight:600}
+.cap-note{font-size:12px;color:var(--muted);margin-top:9px;display:flex;justify-content:space-between}
+.danger-note{
+  margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--err-soft);color:var(--err);
+  font-size:12.5px;font-weight:500;display:none;
+}
+.danger-note.show{display:block}
+.warn-note{
+  margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn);
+  font-size:12.5px;font-weight:500;display:none;
+}
+.warn-note.show{display:block}
+.tpl-bar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+.tpl-bar select{flex:1}
+.preview-box{
+  margin-top:14px;border:1px dashed var(--border);border-radius:10px;padding:14px 16px;
+  background:var(--paper2);display:none;
+}
+.preview-box.show{display:block}
+.preview-box h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:8px}
+.preview-box .pv-subject{font-weight:600;font-size:13.5px;margin-bottom:8px}
+.preview-box pre{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;white-space:pre-wrap;line-height:1.55;
+  color:var(--ink);max-height:260px;overflow-y:auto;
+}
+.unsub-opt{display:flex;gap:9px;align-items:center;padding:6px 0}
+.unsub-opt input[type=checkbox]{width:auto;accent-color:var(--accent)}
+.unsub-opt label{font-size:13.5px;font-weight:500;cursor:pointer}
+.unsub-opt .why{display:block;font-size:12px;color:var(--muted)}
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:50;max-width:420px;padding:13px 18px;border-radius:12px;
+  background:var(--ink);color:var(--paper);font-size:13.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);
+  opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;
+  white-space:pre-line;
+}
+.toast.show{opacity:1;transform:none}
+.toast.err{background:var(--err);color:#fff}
+
+/* Rail */
+.rail{padding:18px 20px}
+.rail h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:10px;font-weight:600}
+.rail-sep{border-top:1px solid var(--border);margin:14px 0}
+.sched-opt{display:flex;gap:9px;align-items:flex-start;padding:6px 0}
+.sched-opt input[type=radio]{width:auto;accent-color:var(--accent);margin-top:3px}
+.sched-opt label{font-size:13.5px;font-weight:500;cursor:pointer}
+.sched-opt .when{display:block;font-size:12px;color:var(--muted)}
+.recap-line{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13.5px;color:var(--muted)}
+.recap-line b{font-weight:500;color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:12.5px;text-align:right}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;
+  border-radius:99px;border:none;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;
+  transition:opacity .15s,transform .1s;
+}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--accent);color:var(--accent-text);width:100%}
+.btn-primary:hover{opacity:.88}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--muted);font-weight:500}
+.btn-ghost:hover{color:var(--ink);border-color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.mascot-wrap{margin-top:16px;text-align:center}
+.mascot{width:98px;height:auto;display:block;margin:0 auto}
+.mascot .eye{animation:blink 5.2s infinite;transform-origin:center;transform-box:fill-box}
+@keyframes blink{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}97%{transform:scaleY(1)}}
+.mascot-wrap p{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+.mascot-wrap b{color:var(--ink);font-weight:600}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.stat{padding:16px 20px}
+.stat b{font-family:"Instrument Serif",serif;font-size:34px;font-weight:400;line-height:1}
+.stat span{display:block;color:var(--muted);font-size:12.5px;margin-top:5px}
+
+/* Table */
+.table-card{overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:11px 18px;border-bottom:1px solid var(--border)}
+td{padding:13px 18px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:var(--paper2)}
+tbody tr:hover td:first-child b{color:var(--accent)}
+td .mono{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill-sent{background:var(--ok-soft);color:var(--ok)}
+.pill-sched{background:var(--warn-soft);color:var(--warn)}
+.pill-fail{background:var(--err-soft);color:var(--err)}
+.pill-send{background:var(--accent-soft);color:var(--accent)}
+.pill-send::before{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.prog{width:120px}
+.prog-track{height:4px;border-radius:99px;background:var(--paper2);border:1px solid var(--border);overflow:hidden}
+.prog-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .4s}
+.prog-num{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace;margin-top:4px}
+.link-btn{background:none;border:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;font-weight:500;padding:0}
+.link-btn:hover{text-decoration:underline}
+.empty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13.5px}
+
+/* Contacts */
+.section-h{display:flex;justify-content:space-between;align-items:center;margin:28px 0 12px}
+.section-h:first-child{margin-top:0}
+.section-h h2{font-family:"Instrument Serif",serif;font-size:19px;font-weight:400}
+.section-h h2 em{font-style:italic;color:var(--accent)}
+h2.form-h{font-family:"Instrument Serif",serif;font-size:19px;font-weight:400;margin-bottom:14px}
+h2.form-h em{font-style:italic;color:var(--accent)}
+.contact-row{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border)}
+.contact-row:last-child{border-bottom:none}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;font-size:11.5px;font-weight:600;flex:none}
+.contact-row .who{flex:1;min-width:0}
+.contact-row .who b{display:block;font-size:13.5px;font-weight:500}
+.contact-row .who span{display:block;font-size:12px;color:var(--muted);font-family:"IBM Plex Mono",monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tagvars{font-size:11px;color:var(--muted);font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .side{flex-direction:row;align-items:center;border-right:none;border-bottom:1px solid var(--border);padding:10px 16px;gap:2px;overflow-x:auto}
+  .brand{padding:0 12px 0 0}
+  .brand-name{display:none}
+  .side-foot{margin:0;padding:0;border:none;display:flex;gap:8px}
+  .daemon{display:none}
+  .side-theme{margin:0;padding:6px 11px}
+  .main{padding:22px 16px 44px}
+  .composer{grid-template-columns:1fr}
+  .row2{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .stat b{font-size:26px}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="side" aria-label="Navigation principale">
+    <div class="brand"><div class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--accent)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/></svg></div><div class="brand-name">MailPilot</div></div>
+    <button class="nav-item active" data-view="composer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Composer
+    </button>
+    <button class="nav-item" data-view="campagnes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+      Campagnes
+    </button>
+    <button class="nav-item" data-view="contacts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Contacts
+    </button>
+    <button class="nav-item" data-view="comptes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      Comptes SMTP
+    </button>
+    <div class="side-foot">
+      <div class="daemon" id="daemonLine"><svg class="daemon-cat" viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--ok)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok)" stroke-width="3.5"/></svg><span id="daemonText">Daemon…</span></div>
+      <button class="side-theme" id="themeBtn">Thème : clair</button>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- ============ COMPOSER ============ -->
+    <section class="view active" id="view-composer">
+      <div class="page-head">
+        <h1>Nouvelle <em>campagne</em></h1>
+        <p>Chaque contact reçoit son propre mail. Jamais de liste visible, jamais de copier-coller.</p>
+      </div>
+      <div class="composer">
+        <div class="panel form-card">
+          <div class="tpl-bar">
+            <select id="tplSelect" aria-label="Charger un modèle"><option value="">Charger un modèle…</option></select>
+            <button class="btn-ghost btn" id="tplSaveBtn" type="button">Sauver comme modèle</button>
+            <button class="btn-ghost btn" id="tplRefreshBtn" type="button" aria-label="Rafraîchir les modèles">↻</button>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="account">Compte envoyeur</label>
+              <select id="account"><option>Chargement…</option></select>
+            </div>
+            <div class="field">
+              <label>Mode d'envoi</label>
+              <div class="mode-toggle" role="group">
+                <button class="on" type="button" data-mode="personalized">Personnalisé</button>
+                <button type="button" data-mode="common">Commun</button>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sujet">Sujet</label>
+            <input type="text" id="sujet" placeholder="Bonjour {prenom}, une question sur votre organisme">
+          </div>
+          <div class="field">
+            <label for="corps">Corps du mail <span class="hint">les variables entre accolades sont remplacées pour chaque contact</span></label>
+            <textarea id="corps" placeholder="Bonjour {prenom},
+
+..."></textarea>
+            <div class="chips">
+              <span class="chip-ins">Insérer :</span>
+              <button class="chip" data-var="{prenom}" type="button">{prenom}</button>
+              <button class="chip" data-var="{nom}" type="button">{nom}</button>
+              <button class="chip" data-var="{email}" type="button">{email}</button>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label for="dest">Destinataires <span class="hint">une ligne par contact : email ; nom ; cle=valeur</span></label>
+            <textarea id="dest" placeholder="amelie.fournier@of-lyon.fr ; Amélie Fournier ; entreprise=OF Lyon"></textarea>
+            <div class="cap-note">
+              <span id="destCount">0 destinataire</span>
+              <span>Maximum 100 par campagne</span>
+            </div>
+            <div class="warn-note" id="dupWarn"></div>
+            <div class="danger-note" id="capWarn">Le maximum par campagne est 100. Crée une seconde campagne pour les suivants.</div>
+            <div class="preview-box" id="previewBox">
+              <h4>Aperçu — comme Amélie le recevra</h4>
+              <div class="pv-subject" id="pvSubject"></div>
+              <pre id="pvText"></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel rail">
+          <h3>Programmation</h3>
+          <div class="sched-opt">
+            <input type="radio" name="sched" id="s1" checked>
+            <label for="s1">Envoi immédiat</label>
+          </div>
+          <div class="sched-opt">
+            <input type="radio" name="sched" id="s2">
+            <label for="s2">Planifié
+              <span class="when"><input type="datetime-local" id="when" style="margin-top:5px"></span>
+            </label>
+          </div>
+          <div class="rail-sep"></div>
+          <div class="unsub-opt">
+            <input type="checkbox" id="unsub" checked>
+            <label for="unsub">Mention de désinscription
+              <span class="why">+ header List-Unsubscribe — indispensable en cold email FR</span>
+            </label>
+          </div>
+          <div class="rail-sep"></div>
+          <h3>Récapitulatif</h3>
+          <div class="recap-line"><span>Compte</span><b id="rAccount">—</b></div>
+          <div class="recap-line"><span>Destinataires</span><b id="rCount">0</b></div>
+          <div class="recap-line"><span>Mode</span><b id="rMode">personnalisé</b></div>
+          <div class="recap-line"><span>Envoi</span><b id="rWhen">immédiat</b></div>
+          <div class="rail-sep"></div>
+          <button class="btn btn-primary" id="sendBtn" type="button">Programmer l'envoi</button>
+          <button class="btn btn-ghost" id="previewBtn" type="button" style="width:100%;margin-top:8px">Aperçu du mail</button>
+          <button class="btn btn-ghost" id="testBtn" type="button" style="width:100%;margin-top:8px">Envoi test à moi-même</button>
+          <div class="mascot-wrap">
+            <svg class="mascot" viewBox="0 0 140 132" aria-hidden="true">
+              <path d="M104 116c20-2 28-14 24-30" fill="none" stroke="var(--ink)" stroke-width="7" stroke-linecap="round"/>
+              <ellipse cx="68" cy="114" rx="36" ry="18" fill="var(--ink)"/>
+              <path d="M28 42 22 6l28 15z" fill="var(--ink)"/>
+              <path d="M108 42 114 6 86 21z" fill="var(--ink)"/>
+              <circle cx="68" cy="58" r="40" fill="var(--ink)"/>
+              <rect x="26" y="36" width="84" height="9" rx="4.5" fill="var(--accent)"/>
+              <circle cx="49" cy="42" r="12" fill="var(--paper)" stroke="var(--accent)" stroke-width="4"/>
+              <circle cx="87" cy="42" r="12" fill="var(--paper)" stroke="var(--accent)" stroke-width="4"/>
+              <circle class="eye" cx="53" cy="72" r="4" fill="var(--paper)"/>
+              <circle class="eye" cx="83" cy="72" r="4" fill="var(--paper)"/>
+              <path d="M64 82h8l-4 5z" fill="var(--paper)"/>
+              <path d="M68 87c-2 5-7 6-11 3M68 87c2 5 7 6 11 3" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M30 70H10M30 77l-19 5M106 70h20M106 77l19 5" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <p><b>Pilou</b> est aux commandes.<br>Tes envois partent à l'heure, même porte fermée.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CAMPAGNES ============ -->
+    <section class="view" id="view-campagnes">
+      <div class="page-head">
+        <h1>Tes <em>campagnes</em></h1>
+        <p>Tout ce qui part, tout ce qui est parti, et ce qui a planté.</p>
+      </div>
+      <div class="stat-grid">
+        <div class="panel stat"><b id="stToday">0</b><span>envoyés aujourd'hui</span></div>
+        <div class="panel stat"><b id="stPending">0</b><span>campagnes planifiées</span></div>
+        <div class="panel stat"><b id="stFailed">0</b><span>échecs cette semaine</span></div>
+      </div>
+      <div class="panel table-card">
+        <table>
+          <thead><tr><th>Campagne</th><th>Statut</th><th>Programmé</th><th>Progression</th><th></th></tr></thead>
+          <tbody id="campaignRows"></tbody>
+        </table>
+        <div class="empty" id="campaignEmpty" hidden>Aucune campagne pour l'instant. Compose la première !</div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACTS ============ -->
+    <section class="view" id="view-contacts">
+      <div class="page-head">
+        <h1>Tes <em>contacts</em></h1>
+        <p>Des listes, des variables, zéro tableur à synchroniser.</p>
+      </div>
+      <div id="contactLists"></div>
+    </section>
+
+    <!-- ============ COMPTES ============ -->
+    <section class="view" id="view-comptes">
+      <div class="page-head">
+        <h1>Tes comptes <em>SMTP</em></h1>
+        <p>Mots de passe chiffrés localement. Ils ne quittent jamais ta machine.</p>
+      </div>
+      <div class="stat-grid" style="grid-template-columns:1fr 1fr">
+        <div class="panel form-card">
+          <h2 class="form-h">Comptes <em>enregistrés</em></h2>
+          <div id="accountList"><div class="empty">Aucun compte. Ajoute le premier à droite.</div></div>
+        </div>
+        <div class="panel form-card">
+          <h2 class="form-h">Nouveau <em>compte</em></h2>
+          <div class="field"><label for="lbl">Libellé</label><input type="text" id="lbl" placeholder="Pro Gmail"></div>
+          <div class="field"><label for="host">Serveur SMTP</label><input type="text" id="host" placeholder="smtp.gmail.com"></div>
+          <div class="row2">
+            <div class="field"><label for="port">Port</label><input type="text" id="port" value="465"></div>
+            <div class="field"><label for="user">Utilisateur</label><input type="email" id="user" placeholder="toi@exemple.fr"></div>
+          </div>
+          <div class="field"><label for="pass">Mot de passe <span class="hint">mot de passe d'app pour Gmail</span></label><input type="password" id="pass"></div>
+          <div class="field"><label for="fname">Nom affiché</label><input type="text" id="fname" placeholder="Mala"></div>
+          <div class="field"><label for="dcap">Limite quotidienne <span class="hint">0 = illimité — Gmail : ~500/jour</span></label><input type="text" id="dcap" placeholder="0"></div>
+          <button class="btn btn-primary" id="addAccountBtn" type="button">Ajouter le compte</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { mode: "personalized", accounts: [], templates: [] };
+
+  // ---------- Thème ----------
+  var themeMode = "light";
+  var themeBtn = $("themeBtn");
+  function applyTheme(){
+    if(themeMode === "system"){ document.documentElement.removeAttribute("data-theme"); }
+    else { document.documentElement.setAttribute("data-theme", themeMode); }
+    themeBtn.textContent = "Thème : " + (themeMode === "system" ? "système" : themeMode === "dark" ? "sombre" : "clair");
+  }
+  themeBtn.addEventListener("click", function(){
+    themeMode = themeMode === "light" ? "dark" : themeMode === "dark" ? "system" : "light";
+    applyTheme();
+  });
+
+  // ---------- Toast ----------
+  var toastTimer;
+  function toast(msg, isErr){
+    var el = $("toast");
+    el.textContent = msg;
+    el.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.className = "toast"; }, 4200);
+  }
+
+  // ---------- Navigation ----------
+  document.querySelectorAll(".nav-item").forEach(function(item){
+    item.addEventListener("click", function(){
+      document.querySelectorAll(".nav-item").forEach(function(n){ n.classList.remove("active"); });
+      document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
+      item.classList.add("active");
+      $("view-" + item.dataset.view).classList.add("active");
+      window.scrollTo(0,0);
+      if(item.dataset.view === "campagnes") loadCampaigns();
+      if(item.dataset.view === "contacts") loadContacts();
+      if(item.dataset.view === "comptes") loadAccounts();
+    });
+  });
+
+  // ---------- API ----------
+  function get(path){ return request(path, null); }
+  function post(path, data){ return request(path, JSON.stringify(data)); }
+  function request(path, body){
+    return fetch(path, {
+      method: body === null ? "GET" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body
+    }).then(function(r){
+      return r.json().then(function(j){ return { status: r.status, ok: r.ok, json: j }; });
+    }).catch(function(){
+      return { status: 0, ok: false, json: { error: "Serveur injoignable." } };
+    });
+  }
+
+  // ---------- Comptes ----------
+  function loadAccounts(){
+    return get("/api/accounts").then(function(res){
+      if(!res.ok) return;
+      state.accounts = res.json;
+      var sel = $("account");
+      sel.innerHTML = "";
+      if(state.accounts.length === 0){
+        sel.innerHTML = "<option>Aucun compte — ajoute-en un dans l'onglet Comptes</option>";
+      } else {
+        state.accounts.forEach(function(a){
+          var opt = document.createElement("option");
+          opt.value = a.label;
+          opt.textContent = a.label + " · " + a.user;
+          sel.appendChild(opt);
+        });
+        $("rAccount").textContent = state.accounts[0].label;
+      }
+      var list = $("accountList");
+      if(state.accounts.length === 0){
+        list.innerHTML = "<div class='empty'>Aucun compte. Ajoute le premier à droite.</div>";
+        return;
+      }
+      list.innerHTML = "";
+      state.accounts.forEach(function(a){
+        var row = document.createElement("div");
+        row.className = "recap-line";
+        row.style.padding = "9px 0";
+        row.innerHTML = "<span><b style='font-family:Inter;font-size:13.5px'>" + esc(a.label) + "</b><br>" +
+          "<span class='mono'>" + esc(a.user) + " · " + esc(a.host) + ":" + a.port +
+          (a.daily_cap > 0 ? " · cap " + a.daily_cap + "/j" : "") + "</span></span>" +
+          "<button class='link-btn' type='button'>Test</button>";
+        row.querySelector("button").addEventListener("click", function(){
+          toast("Envoi du mail test…");
+          post("/api/accounts/" + a.id + "/test", {}).then(function(r){
+            if(r.ok) toast(r.json.message || "Mail test envoyé.");
+            else toast(r.json.error || "Échec du test.", true);
+          });
+        });
+        list.appendChild(row);
+      });
+    });
+  }
+
+  $("addAccountBtn").addEventListener("click", function(){
+    var b = {
+      label: $("lbl").value.trim(), host: $("host").value.trim(),
+      port: parseInt($("port").value, 10) || 465,
+      user: $("user").value.trim(), password: $("pass").value,
+      from_name: $("fname").value.trim(),
+      daily_cap: parseInt($("dcap").value, 10) || 0
+    };
+    if(!b.label || !b.host || !b.user || !b.password){ toast("Libellé, serveur, utilisateur et mot de passe sont requis.", true); return; }
+    post("/api/accounts", b).then(function(r){
+      if(r.ok){ toast("Compte « " + b.label + " » ajouté."); $("lbl").value = $("host").value = $("user").value = $("pass").value = $("fname").value = $("dcap").value = ""; loadAccounts(); }
+      else toast(r.json.error || "Ajout impossible.", true);
+    });
+  });
+
+  // ---------- Composer ----------
+  document.querySelectorAll(".mode-toggle button").forEach(function(b){
+    b.addEventListener("click", function(){
+      b.parentNode.querySelectorAll("button").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      state.mode = b.dataset.mode || "personalized";
+      $("rMode").textContent = state.mode === "common" ? "commun" : "personnalisé";
+    });
+  });
+
+  document.querySelectorAll(".chip[data-var]").forEach(function(c){
+    c.addEventListener("click", function(){
+      var ta = $("sujet");
+      ta.value += (ta.value ? " " : "") + c.dataset.var;
+      ta.focus();
+      updateRecap();
+    });
+  });
+
+  function countDest(){
+    var lines = $("dest").value.split("\n").filter(function(l){ return l.trim(); });
+    $("destCount").textContent = lines.length + (lines.length > 1 ? " destinataires" : " destinataire");
+    $("rCount").textContent = String(lines.length);
+    $("capWarn").classList.toggle("show", lines.length > 100);
+    // Doublons (insensible à la casse) : la personne ne doit recevoir qu'un mail.
+    var seen = {}, dup = 0;
+    lines.forEach(function(l){
+      var email = (l.split(";")[0] || "").trim().toLowerCase();
+      if(!email) return;
+      if(seen[email]) dup += 1;
+      else seen[email] = true;
+    });
+    var dw = $("dupWarn");
+    dw.textContent = dup + " email(s) en double — un même contact ne reçoit qu'un seul mail.";
+    dw.classList.toggle("show", dup > 0);
+    return lines.length;
+  }
+  $("dest").addEventListener("input", countDest);
+  $("account").addEventListener("change", function(){ $("rAccount").textContent = $("account").value; });
+  $("sujet").addEventListener("input", updateRecap);
+  $("corps").addEventListener("input", updateRecap);
+  $("when").addEventListener("change", updateRecap);
+  $("s1").addEventListener("change", updateRecap);
+  $("s2").addEventListener("change", updateRecap);
+
+  function updateRecap(){
+    $("rMode").textContent = state.mode === "common" ? "commun" : "personnalisé";
+    if($("s2").checked && $("when").value){
+      var d = new Date($("when").value);
+      $("rWhen").textContent = d.toLocaleString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+    } else {
+      $("rWhen").textContent = "immédiat";
+    }
+  }
+
+  $("sendBtn").addEventListener("click", function(){
+    var dest = $("dest").value;
+    var n = countDest();
+    if(n === 0){ toast("Ajoute au moins un destinataire.", true); return; }
+    if(n > 100){ toast("Maximum 100 destinataires par campagne.", true); return; }
+    if(!$("sujet").value.trim()){ toast("Le sujet est vide.", true); return; }
+    if(!$("corps").value.trim()){ toast("Le corps du mail est vide.", true); return; }
+    var payload = {
+      account: $("account").value,
+      subject: $("sujet").value,
+      body: $("corps").value,
+      mode: state.mode,
+      recipients: dest,
+      unsubscribe: $("unsub").checked
+    };
+    if($("s2").checked && $("when").value){
+      payload.scheduled_at = new Date($("when").value).toISOString();
+    }
+    var btn = $("sendBtn");
+    btn.disabled = true;
+    post("/api/send", payload).then(function(r){
+      btn.disabled = false;
+      if(r.ok){
+        var msg = "Campagne #" + r.json.id + " : " + r.json.count + " mail(s) " +
+          ($("s2").checked ? "planifié(s)." : "en route. Pilou s'en occupe.");
+        if(r.json.warnings && r.json.warnings.length) msg += "\n⚠️ " + r.json.warnings.join("\n⚠️ ");
+        toast(msg);
+        $("sujet").value = ""; $("corps").value = ""; countDest();
+        $("previewBox").classList.remove("show");
+        loadStatus();
+      } else {
+        toast(r.json.error || "Envoi impossible.", true);
+      }
+    });
+  });
+
+  // ---------- Aperçu ----------
+  $("previewBtn").addEventListener("click", function(){
+    if(!$("sujet").value.trim() && !$("corps").value.trim()){ toast("Écris au moins un sujet ou un corps à prévisualiser.", true); return; }
+    post("/api/preview", {
+      subject: $("sujet").value,
+      body: $("corps").value,
+      mode: state.mode
+    }).then(function(r){
+      if(!r.ok){ toast(r.json.error || "Aperçu impossible.", true); return; }
+      $("pvSubject").textContent = r.json.subject || "(sans sujet)";
+      var pv = r.json.text || "";
+      if(r.json.missing_vars && r.json.missing_vars.length){
+        pv += "\n\n⚠️ Variables sans valeur : " + r.json.missing_vars.map(function(m){ return "{" + m + "}"; }).join(", ");
+      }
+      $("pvText").textContent = pv;
+      $("previewBox").classList.add("show");
+      $("previewBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  });
+
+  // ---------- Modèles ----------
+  function loadTemplates(){
+    return get("/api/templates").then(function(r){
+      if(!r.ok) return;
+      var sel = $("tplSelect");
+      var current = sel.value;
+      sel.innerHTML = "<option value=''>Charger un modèle…</option>";
+      r.json.forEach(function(t){
+        var opt = document.createElement("option");
+        opt.value = String(t.id);
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+      });
+      sel.value = current;
+      state.templates = r.json;
+    });
+  }
+  $("tplSelect").addEventListener("change", function(){
+    var t = (state.templates || []).find(function(x){ return String(x.id) === $("tplSelect").value; });
+    if(!t) return;
+    $("sujet").value = t.subject;
+    $("corps").value = t.body;
+    updateRecap();
+    toast("Modèle « " + t.name + " » chargé.");
+  });
+  $("tplRefreshBtn").addEventListener("click", loadTemplates);
+  $("tplSaveBtn").addEventListener("click", function(){
+    var subject = $("sujet").value.trim(), body = $("corps").value.trim();
+    if(!subject && !body){ toast("Rien à sauvegarder : le sujet et le corps sont vides.", true); return; }
+    var name = window.prompt("Nom du modèle :");
+    if(!name) return;
+    post("/api/templates", { name: name, subject: subject, body: body }).then(function(r){
+      if(r.ok){ toast("Modèle « " + name + " » sauvegardé."); loadTemplates(); }
+      else toast(r.json.error || "Sauvegarde impossible.", true);
+    });
+  });
+
+  $("testBtn").addEventListener("click", function(){
+    var acc = state.accounts.find(function(a){ return a.label === $("account").value; });
+    if(!acc){ toast("Aucun compte sélectionné.", true); return; }
+    toast("Envoi du mail test…");
+    post("/api/accounts/" + acc.id + "/test", {}).then(function(r){
+      if(r.ok) toast(r.json.message || "Mail test envoyé.");
+      else toast(r.json.error || "Test impossible.", true);
+    });
+  });
+
+  // ---------- Campagnes ----------
+  function pillClass(status){
+    if(status === "done" || status === "sent") return "pill-sent";
+    if(status === "scheduled") return "pill-sched";
+    if(status === "sending") return "pill-send";
+    if(status === "failed") return "pill-fail";
+    return "pill-sched";
+  }
+  var pillLabels = {
+    done: "Envoyé", scheduled: "Planifié", sending: "En cours",
+    failed: "Échec", cancelled: "Annulé", draft: "Brouillon"
+  };
+
+  function loadCampaigns(){
+    get("/api/campaigns").then(function(res){
+      if(!res.ok) return;
+      var rows = res.json;
+      var tbody = $("campaignRows");
+      $("campaignEmpty").hidden = rows.length > 0;
+      var today = 0, pending = 0, failed = 0;
+      var dayKey = new Date().toDateString();
+      tbody.innerHTML = "";
+      rows.forEach(function(c){
+        if(c.status === "scheduled") pending += 1;
+        failed += c.failed || 0;
+        if(c.status === "done" && c.scheduled_at && new Date(c.scheduled_at).toDateString() === dayKey){
+          today += c.sent || 0;
+        }
+        var sent = c.sent || 0;
+        var total = c.total || 0;
+        var pct = total ? Math.round(100 * sent / total) : 0;
+        var when = c.scheduled_at ? fmtDate(c.scheduled_at) : "immédiat";
+        var acts = [];
+        if(c.status === "scheduled") acts.push("<button class='link-btn' data-act='cancel'>Annuler</button>");
+        if((c.failed || 0) > 0 && (c.status === "done" || c.status === "failed")) acts.push("<button class='link-btn' data-act='retry'>Relancer les échecs</button>");
+        if(total > 0) acts.push("<button class='link-btn' data-act='export'>Export CSV</button>");
+        acts.push("<button class='link-btn' data-act='detail'>Détail</button>");
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td><b>" + esc(c.name || c.subject) + "</b><br><span class='mono'>" + (c.total || 0) + " destinataires · " + esc(c.account_label || "") + "</span></td>" +
+          "<td><span class='pill " + pillClass(c.status) + "'>" + (pillLabels[c.status] || c.status) + "</span></td>" +
+          "<td><span class='mono'>" + when + "</span></td>" +
+          "<td class='prog'><div class='prog-track'><div class='prog-fill' style='width:" + pct + "%'></div></div><div class='prog-num'>" + sent + " / " + total + "</div></td>" +
+          "<td style='white-space:nowrap'>" + acts.join(" ") + "</td>";
+        tr.querySelectorAll("button").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            var act = btn.dataset.act;
+            if(act === "cancel"){
+              post("/api/campaigns/" + c.id + "/cancel", {}).then(function(r){
+                if(r.ok){ toast("Campagne #" + c.id + " annulée."); loadCampaigns(); }
+                else toast(r.json.error || "Annulation impossible.", true);
+              });
+            } else if(act === "retry"){
+              post("/api/campaigns/" + c.id + "/retry-failed", {}).then(function(r){
+                if(r.ok){ toast(r.json.retried + " envoi(s) remis en file. Pilou relance."); loadCampaigns(); }
+                else toast(r.json.error || "Relance impossible.", true);
+              });
+            } else if(act === "export"){
+              window.location.href = "/api/campaigns/" + c.id + "/export";
+            } else {
+              showCampaignDetail(c.id);
+            }
+          });
+        });
+        tbody.appendChild(tr);
+      });
+      $("stToday").textContent = String(today);
+      $("stPending").textContent = String(pending);
+      $("stFailed").textContent = String(failed);
+    });
+  }
+
+  function showCampaignDetail(id){
+    get("/api/campaigns/" + id).then(function(res){
+      if(!res.ok){ toast(res.json.error || "Campagne introuvable.", true); return; }
+      var c = res.json;
+      var lines = (c.recipients || []).map(function(r){
+        return "  " + r.email + " : " + r.status + (r.error ? " — " + r.error : "");
+      }).join("\n");
+      toast("Campagne #" + c.id + " (" + c.status + ") :\n" + lines, c.status === "failed");
+    });
+  }
+
+  // ---------- Contacts ----------
+  function loadContacts(){
+    get("/api/contacts").then(function(res){
+      if(!res.ok) return;
+      var lists = res.json;
+      var host = $("contactLists");
+      host.innerHTML = "";
+      var names = Object.keys(lists);
+      if(names.length === 0){
+        host.innerHTML = "<div class='panel empty'>Aucune liste. Importe un CSV via Claude Code (import_contacts) ou ajoute des contacts.</div>";
+        return;
+      }
+      names.forEach(function(listName){
+        var members = lists[listName];
+        var h = document.createElement("div");
+        h.className = "section-h";
+        h.innerHTML = "<h2>" + esc(listName) + " <em style='font-size:14px;color:var(--muted)'>(" + members.length + ")</em></h2>";
+        host.appendChild(h);
+        var panel = document.createElement("div");
+        panel.className = "panel";
+        panel.style.marginBottom = "6px";
+        members.forEach(function(m){
+          var row = document.createElement("div");
+          row.className = "contact-row";
+          var initials = (m.name || m.email).split(/[\s@.]+/).slice(0,2).map(function(s){ return (s[0] || "").toUpperCase(); }).join("") || "?";
+          var varTags = Object.keys(m.vars || {}).filter(function(k){ return k !== "email" && k !== "nom"; })
+            .map(function(k){ return "{" + k + "}"; }).join(" ") || "";
+          row.innerHTML =
+            "<div class='avatar'>" + esc(initials) + "</div>" +
+            "<div class='who'><b>" + esc(m.name || m.email) + "</b><span>" + esc(m.email) + "</span></div>" +
+            "<div class='tagvars'>" + esc(varTags) + "</div>";
+          panel.appendChild(row);
+        });
+        host.appendChild(panel);
+      });
+    });
+  }
+
+  // ---------- Statut daemon ----------
+  function loadStatus(){
+    get("/api/status").then(function(res){
+      if(!res.ok) return;
+      var line = $("daemonLine");
+      if(res.json.daemon_active){
+        line.classList.remove("off");
+        $("daemonText").textContent = "Daemon actif · " + res.json.pending_campaigns + " en attente";
+      } else {
+        line.classList.add("off");
+        $("daemonText").textContent = "Daemon éteint — lance npm start";
+      }
+    });
+  }
+
+  function fmtDate(iso){
+    var d = new Date(/[TZ]/.test(iso) ? iso : iso.replace(" ", "T") + "Z");
+    return d.toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  // ---------- Init ----------
+  loadAccounts();
+  loadTemplates();
+  loadStatus();
+  setInterval(loadStatus, 8000);
+  setInterval(function(){
+    if($("view-campagnes").classList.contains("active")) loadCampaigns();
+  }, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MailPilot — tes emails partent seuls, pilotés par Claude Code</title>
+<meta name="description" content="MailPilot envoie des emails personnalisés et programmés depuis ta machine, pilotable depuis Claude Code via MCP. Aucun serveur tiers, aucune donnée qui quitte ton ordinateur.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ffffff; --paper2:#f4f4f3; --ink:#010100; --muted:#75757d; --border:#e6e5e3;
+  --accent:#2a2ecd; --accent-soft:#ebe9fb; --grid:rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
+  --accent:#feca04; --accent-soft:#2b2410; --grid:rgba(255,255,255,.05);
+}}
+:root[data-theme="dark"]{
+  --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
+  --accent:#feca04; --accent-soft:#2b2410; --grid:rgba(255,255,255,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Inter",system-ui,sans-serif; font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; padding-block:0 64px; position:relative;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size:44px 44px;
+}
+.wrap{position:relative; z-index:1; max-width:960px; margin:0 auto; padding:0 24px}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+.mono{font-family:"IBM Plex Mono",monospace}
+
+/* ---------- Header ---------- */
+.top{display:flex;align-items:center;gap:12px;padding:22px 0}
+.top .mark{width:28px;height:28px;color:var(--ink)}
+.top .mark svg{width:100%;height:100%;display:block}
+.top .name{font-family:"Instrument Serif",serif;font-size:21px}
+.top .name::after{content:".";color:var(--accent)}
+.top nav{margin-left:auto;display:flex;gap:20px;font-size:14px}
+.top nav a{color:var(--muted);font-weight:500}
+.top nav a:hover{color:var(--ink);text-decoration:none}
+@media (max-width:640px){ .top nav{display:none} }
+
+/* ---------- Hero ---------- */
+.hero{padding:72px 0 64px;max-width:720px}
+.hero h1{
+  font-family:"Instrument Serif",serif;font-weight:400;font-size:clamp(38px,6vw,58px);
+  line-height:1.08;letter-spacing:-.01em;
+}
+.hero h1 em{font-style:italic;color:var(--accent)}
+.hero p{color:var(--muted);font-size:18px;margin-top:18px;max-width:560px}
+.hero .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px;align-items:center}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:99px;
+  font-weight:600;font-size:15px;cursor:pointer;transition:opacity .15s;
+  text-decoration:none !important;border:none;
+}
+.btn-accent{background:var(--accent);color:var(--paper)}
+:root[data-theme="dark"] .btn-accent,:root:not([data-theme="light"]) .btn-accent{color:#111100}
+.btn-accent:hover{opacity:.88}
+.btn-ghost{border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{color:var(--ink);border-color:var(--ink)}
+.cmd{
+  margin-top:28px;padding:14px 18px;border:1px solid var(--border);border-radius:12px;
+  background:var(--paper2);font-size:13.5px;color:var(--muted);overflow-x:auto;
+}
+.cmd b{color:var(--ink);font-weight:500}
+.hero-cat{position:absolute;right:24px;top:96px;width:120px;color:var(--ink)}
+@media (max-width:860px){ .hero-cat{display:none} }
+.hero-cat .eye{animation:blink 5.2s infinite;transform-origin:center;transform-box:fill-box}
+@keyframes blink{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}97%{transform:scaleY(1)}}
+@media (prefers-reduced-motion: reduce){ .hero-cat .eye{animation:none} }
+
+/* ---------- Sections ---------- */
+section{padding:56px 0}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600;margin-bottom:12px}
+h2{font-family:"Instrument Serif",serif;font-weight:400;font-size:clamp(26px,4vw,34px);letter-spacing:-.01em}
+h2 em{font-style:italic;color:var(--accent)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:32px}
+@media (max-width:760px){ .steps{grid-template-columns:1fr} }
+.step{padding:22px 24px;border:1px solid var(--border);border-radius:14px;background:var(--paper)}
+.step .num{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent);font-weight:500}
+.step h3{font-size:16px;font-weight:600;margin:8px 0 6px}
+.step p{font-size:14px;color:var(--muted);line-height:1.55}
+.step .cmdline{
+  margin-top:12px;padding:9px 12px;border-radius:8px;background:var(--paper2);
+  border:1px solid var(--border);font-size:12px;white-space:nowrap;overflow-x:auto;color:var(--ink);
+}
+.quote{
+  margin-top:20px;padding:18px 24px;border-left:3px solid var(--accent);background:var(--paper2);
+  border-radius:0 12px 12px 0;font-size:15px;
+}
+.quote .say{font-style:italic}
+.quote .who{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px}
+@media (max-width:860px){ .feats{grid-template-columns:1fr 1fr} }
+@media (max-width:560px){ .feats{grid-template-columns:1fr} }
+.feat{padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:var(--paper)}
+.feat b{display:block;font-weight:600;font-size:15px;margin-bottom:6px}
+.feat span{font-size:13.5px;color:var(--muted);line-height:1.55}
+.feat b em{font-style:normal;color:var(--accent)}
+
+.local{margin-top:56px;padding:28px 30px;border:1px solid var(--border);border-radius:16px;background:var(--paper2);display:flex;gap:24px;align-items:center}
+@media (max-width:700px){ .local{flex-direction:column;align-items:flex-start} }
+.local .txt{flex:1}
+.local b{font-size:17px;font-weight:600}
+.local p{font-size:14px;color:var(--muted);margin-top:6px}
+.local .cat{width:74px;flex:none;color:var(--ink)}
+
+.foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap wrap-top"></div>
+<div class="wrap">
+
+  <header class="top">
+    <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--accent)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/></svg></div>
+    <div class="name">MailPilot</div>
+    <nav>
+      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#fonctionnalites">Fonctionnalités</a>
+      <a href="https://github.com/wvxv8rmzwb-dev/MailPilot/blob/main/docs/guide.md">Guide</a>
+      <a href="#github">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero" style="position:relative">
+    <svg class="hero-cat" viewBox="0 0 140 132" aria-hidden="true">
+      <path d="M104 116c20-2 28-14 24-30" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+      <ellipse cx="68" cy="114" rx="36" ry="18" fill="currentColor"/>
+      <path d="M28 42 22 6l28 15z" fill="currentColor"/>
+      <path d="M108 42 114 6 86 21z" fill="currentColor"/>
+      <circle cx="68" cy="58" r="40" fill="currentColor"/>
+      <rect x="26" y="36" width="84" height="9" rx="4.5" fill="var(--accent)"/>
+      <circle cx="49" cy="42" r="12" fill="var(--paper)" stroke="var(--accent)" stroke-width="4"/>
+      <circle cx="87" cy="42" r="12" fill="var(--paper)" stroke="var(--accent)" stroke-width="4"/>
+      <circle class="eye" cx="53" cy="72" r="4" fill="var(--paper)"/>
+      <circle class="eye" cx="83" cy="72" r="4" fill="var(--paper)"/>
+      <path d="M64 82h8l-4 5z" fill="var(--paper)"/>
+      <path d="M68 87c-2 5-7 6-11 3M68 87c2 5 7 6 11 3" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M30 70H10M30 77l-19 5M106 70h20M106 77l19 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h1>Tes emails partent <em>seuls</em>.<br>Pilou veille.</h1>
+    <p>MailPilot envoie des emails personnalisés et programmés depuis <b>ta machine</b>, pilotable en langage naturel depuis Claude Code. Aucun serveur tiers, aucune donnée qui quitte ton ordinateur.</p>
+    <div class="cta">
+      <a class="btn btn-accent" href="#fonctionnement">Voir comment ça marche</a>
+      <a class="btn btn-ghost" href="https://github.com/wvxv8rmzwb-dev/MailPilot/blob/main/docs/guide.md">Le guide complet →</a>
+    </div>
+    <div class="cmd mono"><b>git clone</b> https://github.com/wvxv8rmzwb-dev/MailPilot &amp;&amp; <b>npm install</b> &amp;&amp; <b>npm start</b></div>
+  </div>
+
+  <section id="fonctionnement">
+    <div class="eyebrow">Fonctionnement</div>
+    <h2>Trois étapes, <em>c'est tout</em></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Installe le daemon</h3>
+        <p>Un <span class="mono">npm start</span> et MailPilot tourne en local : scheduler d'envois + petit dashboard web.</p>
+        <div class="cmdline mono">npm install && npm start</div>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>Branche Claude Code</h3>
+        <p>Une commande pour connecter MailPilot à Claude Code via MCP. 15 outils apparaissent.</p>
+        <div class="cmdline mono">claude mcp add mailpilot -- npm run mcp</div>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Parle-lui</h3>
+        <p>Claude compose, personnalise et programme. Le daemon envoie à l'heure, même Claude fermé.</p>
+        <div class="cmdline mono">« Programme un mail pour demain 9h »</div>
+      </div>
+    </div>
+    <div class="quote">
+      <div class="say">« Programme un mail pour demain 9h à ma liste Prospection OF, sujet "Bonjour {prenom}, une question sur {entreprise}" »</div>
+      <div class="who">— toi, dans Claude Code. C'est le seul geste à faire.</div>
+    </div>
+  </section>
+
+  <section id="fonctionnalites">
+    <div class="eyebrow">Fonctionnalités</div>
+    <h2>Pensé pour l'envoi <em>sérieux</em></h2>
+    <div class="feats">
+      <div class="feat"><b>Un mail par personne</b><span>Chaque destinataire reçoit son propre mail. Jamais de liste visible, jamais de « To: 87 contacts ».</span></div>
+      <div class="feat"><b>Personnalisation</b><span><span class="mono">{prenom}</span>, <span class="mono">{entreprise}</span>… chaque mail est rendu contact par contact, avec aperçu avant envoi.</span></div>
+      <div class="feat"><b>Programmation</b><span>Date, heure, même fenêtre fermée : le daemon local déclenche, pas un cloud qui peut fermer.</span></div>
+      <div class="feat"><b>Anti-spam intégré</b><span>100 contacts max par campagne, 3 s entre chaque mail, cap quotidien configurable par compte.</span></div>
+      <div class="feat"><b>Fenêtre d'envoi</b><span>Par défaut 08:00–20:00 : tes mails n'arrivent jamais à 3h du matin, et le compte ne se fait pas flagger.</span></div>
+      <div class="feat"><b>Relance des échecs</b><span>Erreur réseau ? Retry automatique avec backoff. Boîte pleine ? Un clic pour relancer les échecs.</span></div>
+      <div class="feat"><b>Désinscription</b><span>Mention en pied de mail + header <span class="mono">List-Unsubscribe</span> : conforme LCEN/CGPR, bon signal pour les boîtes.</span></div>
+      <div class="feat"><b>Modèles & export</b><span>Sauvegarde tes mails types, recharge-les en un clic, exporte chaque campagne en CSV.</span></div>
+      <div class="feat"><b>Dashboard local</b><span>Composer, campagnes, contacts, comptes SMTP — tout sur <span class="mono">localhost:3777</span>, rien dans le cloud.</span></div>
+    </div>
+  </section>
+
+  <div class="local">
+    <svg class="cat" viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--ok,#1a7f4e)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok,#1a7f4e)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok,#1a7f4e)" stroke-width="3.5"/></svg>
+    <div class="txt">
+      <b>100% local, 100% à toi</b>
+      <p>Tes mots de passe SMTP sont chiffrés (AES-256-GCM) sur ta machine. Tes contacts et campagnes vivent dans une base SQLite locale. Aucun compte à créer, aucune donnée qui transite par un serveur tiers. Si MailPilot disparaît demain, tu as déjà tout sur ton disque.</p>
+    </div>
+  </div>
+
+  <footer class="foot" id="github">
+    <span>MailPilot — licence MIT · fait avec Claude Code 🤖</span>
+    <a href="https://github.com/wvxv8rmzwb-dev/MailPilot">Code source &amp; issues →</a>
+  </footer>
+
+</div>
+</body>
+</html>
