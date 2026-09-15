@@ -21,8 +21,25 @@ let running = false;
 /** Boucle du daemon : toutes les 15 s, envoie les campagnes dues. */
 export function startScheduler(): void {
   const intervalMs = Number(getSetting("scheduler_interval_ms", "15000"));
+  recoverOrphanedCampaigns();
   void tick();
   setInterval(() => void tick(), Math.max(5000, intervalMs));
+}
+
+/**
+ * Au démarrage du daemon, une campagne en `sending` est forcément orpheline :
+ * le processus précédent a été tué en plein envoi. On la remet en `scheduled`
+ * pour qu'elle reparte — les destinataires déjà `sent` sont ignorés par
+ * sendCampaign (seuls les `pending` sont repris).
+ */
+function recoverOrphanedCampaigns(): void {
+  const orphans = db
+    .prepare("SELECT id FROM campaigns WHERE status = 'sending'")
+    .all() as { id: number }[];
+  for (const o of orphans) {
+    db.prepare("UPDATE campaigns SET status = 'scheduled' WHERE id = ?").run(o.id);
+    console.log(`Campagne #${o.id} : reprise après arrêt du daemon (envoi interrompu).`);
+  }
 }
 
 export async function tick(): Promise<void> {
