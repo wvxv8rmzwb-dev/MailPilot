@@ -4,7 +4,7 @@ Envoi d'emails programmables en local, pilotable depuis Claude Code via MCP, ave
 
 ![Dashboard MailPilot](docs/screenshot.png)
 
-> 📖 **Nouveau ici ?** Le [guide pas à pas](docs/guide.md) t'accompagne de l'installation à ta première campagne. Une landing page (`index.html`) sert de vitrine — active GitHub Pages sur la branche principale pour la publier.
+> 📖 **Nouveau ici ?** Le [guide pas à pas](docs/guide.md) t'accompagne de l'installation à ta première campagne. La [landing page](https://wvxv8rmzwb-dev.github.io/MailPilot/) présente le fonctionnement en 3 étapes.
 
 ## Ce que ça fait
 
