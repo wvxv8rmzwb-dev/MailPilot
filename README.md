@@ -2,6 +2,8 @@
 
 Envoi d'emails programmables en local, pilotable depuis Claude Code via MCP, avec dashboard web. Mascotte officielle : Pilou.
 
+![Dashboard MailPilot](docs/screenshot.png)
+
 > 📖 **Nouveau ici ?** Le [guide pas à pas](docs/guide.md) t'accompagne de l'installation à ta première campagne. Une landing page (`index.html`) sert de vitrine — active GitHub Pages sur la branche principale pour la publier.
 
 ## Ce que ça fait
