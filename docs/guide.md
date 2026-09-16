@@ -78,7 +78,13 @@ Onglet **Composer** :
 
 **Format HTML** : bascule le corps en HTML pour un rendu soigné (tableaux, styles, boutons). Le fallback texte est dégradé automatiquement pour les clients sans HTML, et les variables `{x}` restent remplaçées.
 
+**Pièces jointes** : ajoute un PDF ou une image dans le Composer (10 Mo max au total). Chaque destinataire reçoit sa copie. Les relances auto ne repartent pas avec la pièce jointe.
+
+**Variables globales** : dans **Réglages**, définis une fois des variables valables partout (`signature`, `lien_calendly`... au format `cle = valeur`). Elles deviennent des chips cliquables dans le Composer et se remplacent comme les autres : `{signature}`.
+
 **Relance automatique** : coche-la dans le rail, choisis un nombre de jours + un sujet et un corps de relance. Dès la campagne terminée, MailPilot programme le follow-up **aux destinataires qui ont bien reçu le premier mail** (les désinscrits en sont exclus automatiquement).
+
+**Cooldown** : par défaut, un contact servi il y a moins de 7 jours ne reçoit pas de second mail (réglable dans Réglages, `cooldown_days` 0 = off). Les relances ne sont pas concernées — c'est leur rôle.
 
 Chaque contact reçoit **son propre mail individuel** — jamais de liste visible. L'envoi est séquentiel (3 s entre chaque mail) pour respecter les serveurs : une campagne de 500 contacts part en ~25 minutes, et le cap quotidien du compte coupe proprement si besoin (le reste part demain).
 
@@ -97,6 +103,26 @@ karim.benali@cfa-paris.fr,Karim Benali,Karim,CFA Paris
 ### Les désinscriptions
 
 Quand un contact répond « STOP » ou rebondit durablement, inscris-le dans **Contacts → Désinscriptions** (ou via Claude Code `add_suppression`). Il sera **exclu automatiquement de toutes les futures campagnes et relances** de ce compte — même s'il est présent dans une liste. Tu peux le réinscrire en un clic.
+
+### La surveillance des réponses (IMAP)
+
+Dans **Réglages → Réponses STOP et bounces**, configure la boîte de réception du compte (pour Gmail : `imap.gmail.com`, port 993, le même mot de passe d'application). MailPilot la lit périodiquement :
+
+- une réponse contenant « STOP », « désinscription », « unsubscribe »… → le contact est **désinscrit automatiquement** ;
+- un rapport d'échec **définitif** (boîte inexistante, adresse rejetée) → désinscrit aussi ;
+- un échec **temporaire** (boîte pleine, serveur occupé) → ignoré, ça se résout souvent seul.
+
+### L'historique d'un contact
+
+Dans **Contacts**, clique sur un contact : tu vois toutes ses campagnes, les dates, le statut de chaque envoi, et ses désinscriptions éventuelles.
+
+### Le warm-up (compte neuf)
+
+Un compte tout neuf qui envoie 200 mails le premier jour se fait souvent bloquer. Active **Warm-up progressif** dans le formulaire du compte : MailPilot limite tout seul la montée en charge (~15 envois le premier jour, +15 par jour — réglable dans Réglages). Le plafond le plus strict entre la limite du fournisseur et le warm-up s'applique ; quand la montée est terminée, désactive-le depuis la liste des comptes.
+
+### Le rapport quotidien
+
+Chaque soir (20:00 par défaut, réglable), les comptes qui ont eu de l'activité reçoivent chez eux un récap : envois du jour, quota restant, échecs en attente, campagnes programmées. Réglable dans **Réglages → Rythme d'envoi**.
 
 ---
 
@@ -122,7 +148,7 @@ Les mails programmés partent **même si ta session Claude Code est fermée** : 
 
 ### Tous les outils MCP
 
-`list_accounts` · `add_account` · `test_account` · `send_test` · `send_now` · `schedule_campaign` · `preview_campaign` · `list_campaigns` · `campaign_status` · `retry_failed_campaign` · `cancel_campaign` · `save_template` · `list_templates` · `delete_template` · `import_contacts` · `list_contacts` · `add_suppression` · `list_suppressions` · `remove_suppression`
+`list_accounts` · `add_account` · `test_account` · `send_test` · `send_now` · `schedule_campaign` · `preview_campaign` · `list_campaigns` · `campaign_status` · `retry_failed_campaign` · `cancel_campaign` · `save_template` · `list_templates` · `delete_template` · `import_contacts` · `list_contacts` · `add_suppression` · `list_suppressions` · `remove_suppression` · `list_variables` · `set_variables`
 
 ---
 

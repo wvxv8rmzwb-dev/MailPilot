@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { decrypt } from "./crypto.js";
 import { renderTemplate, textToHtml, htmlToText, type RecipientVars } from "./render.js";
+import { globalVars } from "./db.js";
 
 export type SmtpAccount = {
   id: number;
@@ -12,6 +13,8 @@ export type SmtpAccount = {
   password_enc: string;
   from_name: string;
 };
+
+export type CampaignAttachment = { filename: string; path: string };
 
 export function createTransport(account: SmtpAccount) {
   return nodemailer.createTransport({
@@ -58,6 +61,9 @@ export function fromHeader(
  *
  * `opts.bodyFormat` : "text" (défaut) → le corps est du texte et l'HTML est
  * dérivé ; "html" → le corps EST du HTML et le texte en est dégradé.
+ *
+ * `opts.attachments` : pièces jointes communes à tous les destinataires.
+ * Les variables globales ({signature}...) sont fusionnées sous les vars du contact.
  */
 export async function sendToRecipients(
   account: SmtpAccount,
@@ -67,7 +73,12 @@ export async function sendToRecipients(
   recipients: SendTarget[],
   delayMs: number,
   onResult: (email: string, ok: boolean, info: { messageId?: string; error?: string }) => void,
-  opts: { unsubscribe?: boolean; bodyFormat?: "text" | "html"; remaining?: number | null } = {}
+  opts: {
+    unsubscribe?: boolean;
+    bodyFormat?: "text" | "html";
+    remaining?: number | null;
+    attachments?: CampaignAttachment[];
+  } = {}
 ): Promise<void> {
   const transport = createTransport(account);
   const from = fromHeader(account);
@@ -77,11 +88,17 @@ export async function sendToRecipients(
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
   }
   const isHtml = opts.bodyFormat === "html";
+  const globals = globalVars();
+  const attachments = (opts.attachments ?? []).map((a) => ({
+    filename: a.filename,
+    path: a.path,
+  }));
   let sentCount = 0;
 
   for (const r of recipients) {
     if (opts.remaining != null && sentCount >= opts.remaining) break;
-    const vars = mode === "personalized" ? r.vars : {};
+    const contact = mode === "personalized" ? r.vars : {};
+    const vars: RecipientVars = { ...globals, ...contact };
     const subject = renderTemplate(subjectTpl, vars, r.name, r.email);
     const renderedBody = renderTemplate(bodyTpl, vars, r.name, r.email);
     const text = isHtml
@@ -104,6 +121,7 @@ export async function sendToRecipients(
           text,
           html,
           headers,
+          attachments,
         });
         onResult(r.email, true, { messageId: info.messageId });
         delivered = true;
@@ -151,6 +169,7 @@ export async function sendPreview(
     prenom: "Amélie",
     nom: "Amélie Dufour",
     email: "exemple@destinataire.fr",
+    ...globalVars(),
     ...sampleVars,
   };
   const name = vars["nom"] ?? "";

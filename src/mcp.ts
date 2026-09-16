@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate, addSuppression, listSuppressions, removeSuppression, defaultDailyCap } from "./db.js";
+import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate, addSuppression, listSuppressions, removeSuppression, defaultDailyCap, globalVars, setGlobalVars } from "./db.js";
 import { encrypt } from "./crypto.js";
 import { queueCampaign } from "./campaigns.js";
 import { sendTest, sendPreview } from "./mailer.js";
@@ -258,10 +258,12 @@ server.registerTool(
     },
   },
   async (b) => {
-    const vars = { prenom: "Amélie", nom: "Amélie Dufour", email: "exemple@destinataire.fr", ...(b.sample_vars ?? {}) };
+    const vars = { prenom: "Amélie", nom: "Amélie Dufour", email: "exemple@destinataire.fr", ...globalVars(), ...(b.sample_vars ?? {}) };
     const subject = renderTemplate(b.subject, vars, vars["nom"] ?? "", vars["email"] ?? "");
     const body = renderTemplate(b.body, vars, vars["nom"] ?? "", vars["email"] ?? "");
-    const missing = findMissingVars(`${b.subject}\n${b.body}`, [{ name: vars["nom"] ?? "", email: vars["email"] ?? "", vars }]);
+    const globals = globalVars();
+    const missing = findMissingVars(`${b.subject}\n${b.body}`, [{ name: vars["nom"] ?? "", email: vars["email"] ?? "", vars }])
+      .filter((k) => globals[k] === undefined);
     return text(
       `Aperçu (destinataire d'exemple) :\n\n--- SUJET ---\n${subject}\n\n--- CORPS ---\n${body}` +
       (missing.length ? `\n\n⚠️ Variables sans valeur dans l'exemple : ${missing.map((m) => `{${m}}`).join(", ")}` : "")
@@ -468,6 +470,47 @@ server.registerTool(
       removeSuppression(acc.id, b.email)
         ? `${b.email} est réinscrit pour le compte "${b.account}".`
         : `${b.email} n'était pas désinscrit du compte "${b.account}".`
+    );
+  }
+);
+
+// ---------- Variables globales ----------
+
+server.registerTool(
+  "list_variables",
+  {
+    title: "Lister les variables globales",
+    description: "Variables globales {cle} définies une fois et utilisables dans tous les sujets/corps de mails (ex: {signature}, {lien_calendly}).",
+    inputSchema: {},
+  },
+  async () => {
+    const vars = globalVars();
+    const keys = Object.keys(vars);
+    if (keys.length === 0) return text("Aucune variable globale. Utilise set_variables.");
+    return text(keys.map((k) => `{${k}} = ${vars[k]}`).join("\n"));
+  }
+);
+
+server.registerTool(
+  "set_variables",
+  {
+    title: "Définir les variables globales",
+    description: "Définit (ou remplace) les variables globales utilisables dans tous les mails : {signature}, {lien_calendly}... Remplace TOUTES les variables existantes par l'objet fourni.",
+    inputSchema: {
+      vars: z.record(z.string()).describe("Objet { cle: valeur }, ex: { signature: 'Amélie\\nOF Lyon', lien_calendly: 'https://cal.com/x' }"),
+    },
+  },
+  async (b) => {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(b.vars)) {
+      if (/^[a-zA-Z0-9_]+$/.test(k) && typeof v === "string") clean[k] = v;
+    }
+    setGlobalVars(clean);
+    const keys = Object.keys(clean);
+    return text(
+      keys.length
+        ? `${keys.length} variable(s) globale(s) définie(s) : ${keys.map((k) => `{${k}}`).join(", ")}. Utilisables dans tous les mails.`
+        : "Variables globales vidées."
     );
   }
 );

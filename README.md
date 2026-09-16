@@ -9,14 +9,20 @@ Envoi d'emails programmables en local, pilotable depuis Claude Code via MCP, ave
 ## Ce que ça fait
 
 - **Chaque destinataire reçoit son propre mail** (jamais de liste visible en `To`/`Cc`)
-- **Personnalisation par variables** : `{prenom}`, `{nom}`, `{entreprise}`... remplacées contact par contact
+- **Personnalisation par variables** : `{prenom}`, `{nom}`, `{entreprise}`... remplacées contact par contact, plus des **variables globales** définies une fois dans Réglages (`{signature}`, `{lien_calendly}`...)
 - **Corps texte ou HTML complet** : fallback texte dégradé automatiquement, variables dans les deux
+- **Pièces jointes** : ajoute un PDF ou une image au Composer (10 Mo max), chaque destinataire reçoit sa copie
 - **Programmation** date/heure : le daemon envoie même session Claude Code fermée
 - **Relances automatiques** : un follow-up part N jours après, aux destinataires servis
 - **Cap 500 destinataires** par campagne (réglable via `max_recipients`), délai inter-envois par défaut 3 s
 - **Doublons filtrés** : un même email ne reçoit qu'un seul mail par campagne
 - **Liste de suppressions** : un contact désinscrit est exclu automatiquement de toutes les campagnes et relances futures du compte
 - **Relance des échecs** : bouton « Relancer » (dashboard) ou `retry_failed_campaign` (MCP)
+- **Cooldown inter-campagnes** : un contact servi il y a moins de 7 jours (réglable) est exclu avec avertissement — jamais de double sollicitation rapprochée
+- **Historique par contact** : clique sur un contact dans l'onglet Contacts — toutes ses campagnes, dates, statuts et désinscriptions
+- **Surveillance IMAP des réponses** : les « STOP » et bounces durs détectés dans la boîte de réception désinscrivent automatiquement (bounces temporaires ignorés)
+- **Warm-up progressif** : un compte neuf monte en charge tout seul (~15/jour, +15 par jour) — le plafond le plus strict s'applique
+- **Rapport quotidien** : chaque soir, les comptes actifs reçoivent chez eux leur récap (envois, quota, échecs, campagnes à venir)
 - **Retry automatique** des erreurs réseau temporaires (backoff 5 s / 15 s in-send + un essai auto 15 min après un échec global temporaire)
 - **Désinscription** : mention en pied de mail + headers `List-Unsubscribe` (activée par défaut)
 - **Limite quotidienne par compte** (`daily_cap`, défaut 500 pour Gmail) : respectée **pendant** l'envoi — le surplus part demain, le compte ne se fait pas bloquer ; quota restant affiché
@@ -64,8 +70,9 @@ Puis dans Claude Code, tout se pilote en langage naturel :
 | `add_suppression` / `list_suppressions` / `remove_suppression` | désinscriptions par compte |
 | `save_template` / `list_templates` / `delete_template` | modèles de mails réutilisables |
 | `import_contacts` / `list_contacts` | listes de contacts (CSV) |
+| `list_variables` / `set_variables` | variables globales (disponibles dans tous les mails) |
 
-`send_now` et `schedule_campaign` acceptent en plus : `body_format: "html"`, et `followup_days` + `followup_subject` + `followup_body` pour programmer la relance automatique.
+`send_now` et `schedule_campaign` acceptent en plus : `body_format: "html"`, `attachments` (fichiers base64, 10 Mo max), et `followup_days` + `followup_subject` + `followup_body` pour programmer la relance automatique.
 
 ## Service Windows (optionnel mais recommandé)
 
@@ -105,6 +112,7 @@ séparateur `,` ou `;`.
 
 - **Gmail** : ~500 mails/jour max, activer la 2FA puis créer un *mot de passe d'application* — mets `daily_cap: 500` sur le compte pour ne jamais dépasser
 - **Délai inter-envois** : 3 s par défaut (clé `send_delay_ms` de la table `settings`)
+- **Warm-up** : un compte neuf n'envoie pas 100 mails le premier jour — active le warm-up progressif dans l'onglet Comptes
 - **Fenêtre d'envoi** : 08:00–20:00 par défaut (`send_window_start`/`send_window_end`) — un mail programmé à minuit part au matin
 - **Désinscription** : activée par défaut, garde-la (obligation légale + signal positif pour les boîtes mail)
 - **Domaine perso** : configure SPF, DKIM et DMARC

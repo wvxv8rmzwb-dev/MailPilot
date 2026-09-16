@@ -1,4 +1,4 @@
-import { db, createCampaign, remainingQuota, suppressedEmails, sqliteNow } from "./db.js";
+import { db, createCampaign, remainingQuota, suppressedEmails, recentlyContactedEmails, globalVars, getSetting, sqliteNow } from "./db.js";
 import { parseCsv, parseRecipientLines, findMissingVars, type ParsedContact } from "./render.js";
 
 export type CampaignInput = {
@@ -10,6 +10,7 @@ export type CampaignInput = {
   unsubscribe?: boolean;
   bodyFormat?: "text" | "html";
   followup?: { days: number; subject: string; body: string } | null;
+  attachments?: { filename: string; base64: string }[];
   recipientsText?: string;
   listName?: string;
   csvText?: string;
@@ -84,6 +85,27 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
     }
   }
 
+  // Cooldown : pas de 2e mail au même contact avant N jours (réglage cooldown_days, défaut 7).
+  const cooldownDays = Number(getSetting("cooldown_days", "7"));
+  if (cooldownDays > 0) {
+    const recent = recentlyContactedEmails(account.id, cooldownDays);
+    if (recent.size > 0) {
+      const before = recipients.length;
+      recipients = recipients.filter((r) => !recent.has(r.email.toLowerCase()));
+      const excluded = before - recipients.length;
+      if (excluded > 0) {
+        warnings.push(
+          `${excluded} destinataire(s) exclu(s) : contacté(s) il y a moins de ${cooldownDays} jour(s) (cooldown, réglage cooldown_days).`
+        );
+      }
+      if (recipients.length === 0) {
+        throw new Error(
+          `Tous les destinataires ont reçu un mail de ce compte il y a moins de ${cooldownDays} jours (cooldown).`
+        );
+      }
+    }
+  }
+
   // Doublons (insensible à la casse) : on garde la 1re occurrence.
   const seen = new Set<string>();
   const unique = recipients.filter((r) => {
@@ -98,8 +120,12 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
   }
   recipients = unique;
 
-  // Variables utilisées dans le texte mais absentes de tous les contacts.
-  const missing = findMissingVars(`${input.subject}\n${input.body}`, recipients);
+  // Variables utilisées dans le texte mais absentes de tous les contacts
+  // (les variables globales comptent comme définies).
+  const globals = globalVars();
+  const missing = findMissingVars(`${input.subject}\n${input.body}`, recipients).filter(
+    (k) => globals[k] === undefined
+  );
   if (missing.length > 0 && input.mode === "personalized") {
     warnings.push(
       `Variable(s) ${missing.map((m) => `{${m}}`).join(", ")} absente(s) des contacts : elles resteront vides dans les mails.`
@@ -124,6 +150,7 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
     unsubscribe: input.unsubscribe,
     bodyFormat: input.bodyFormat,
     followup: input.followup,
+    attachments: input.attachments,
     recipients: recipients.map((r) => ({ email: r.email, vars: r.vars })),
   });
 

@@ -216,6 +216,28 @@ h2.form-h em{font-style:italic;color:var(--accent)}
 .contact-row .who span{display:block;font-size:12px;color:var(--muted);font-family:"IBM Plex Mono",monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tagvars{font-size:11px;color:var(--muted);font-family:"IBM Plex Mono",monospace;white-space:nowrap}
 
+/* Pièces jointes */
+.att-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.att-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid var(--border);border-radius:10px;background:var(--paper2);font-size:12.5px}
+.att-row b{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-row .att-size{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);flex:none}
+.att-row .att-x{background:none;border:none;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;padding:0 2px;line-height:1}
+.att-row .att-x:hover{color:var(--err)}
+input[type=file]{font-size:12.5px;color:var(--muted)}
+input[type=file]::file-selector-button{padding:7px 14px;margin-right:10px;border:1px solid var(--border);border-radius:99px;background:var(--paper);color:var(--ink);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;transition:border-color .15s}
+input[type=file]::file-selector-button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Historique contact */
+.hist-block{border-top:1px dashed var(--border);background:var(--paper2);padding:12px 18px 14px}
+.hist-block h5{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:8px}
+.hist-line{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px}
+.hist-line .mono{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);flex:none}
+.hist-line .hist-what{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;font-family:"IBM Plex Mono",monospace}
+.badge-warm{background:var(--warn-soft);color:var(--warn)}
+.badge-imap{background:var(--ok-soft);color:var(--ok)}
+.form-h-note{font-size:12px;color:var(--muted);margin:-8px 0 14px;line-height:1.55}
+
 @media (max-width:760px){
   .app{grid-template-columns:1fr}
   .side{flex-direction:row;align-items:center;border-right:none;border-bottom:1px solid var(--border);padding:10px 16px;gap:2px;overflow-x:auto}
@@ -253,6 +275,10 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     <button class="nav-item" data-view="comptes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
       Comptes SMTP
+    </button>
+    <button class="nav-item" data-view="reglages">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      Réglages
     </button>
     <div class="side-foot">
       <div class="daemon" id="daemonLine"><svg class="daemon-cat" viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--ok)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--ok)" stroke-width="3.5"/></svg><span id="daemonText">Daemon…</span></div>
@@ -306,7 +332,13 @@ h2.form-h em{font-style:italic;color:var(--accent)}
               <button class="chip" data-var="{prenom}" type="button">{prenom}</button>
               <button class="chip" data-var="{nom}" type="button">{nom}</button>
               <button class="chip" data-var="{email}" type="button">{email}</button>
+              <span id="globalChips" style="display:contents"></span>
             </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label for="attFile">Pièces jointes <span class="hint">PDF, image… — 10 Mo max au total</span></label>
+            <input type="file" id="attFile" multiple>
+            <div class="att-list" id="attList"></div>
           </div>
           <div class="field" style="margin-bottom:0">
             <label for="dest">Destinataires <span class="hint">une ligne par contact : email ; nom ; cle=valeur</span></label>
@@ -434,7 +466,7 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         <button class="btn btn-primary" id="suppAddBtn" type="button">Désinscrire</button>
       </div>
       <div class="panel" id="suppList"></div>
-      <div class="section-h"><h2>Listes de <em>contacts</em></h2></div>
+      <div class="section-h"><h2>Listes de <em>contacts</em> <em id="histHint" style="font-size:13px;color:var(--muted);font-style:normal">— clique un contact pour son historique</em></h2></div>
       <div id="contactLists"></div>
     </section>
 
@@ -460,8 +492,64 @@ h2.form-h em{font-style:italic;color:var(--accent)}
           <div class="field"><label for="pass">Mot de passe <span class="hint">mot de passe d'app pour Gmail</span></label><input type="password" id="pass"></div>
           <div class="field"><label for="fname">Nom affiché</label><input type="text" id="fname" placeholder="Mala"></div>
           <div class="field"><label for="dcap">Limite quotidienne <span class="hint">vide = défaut (Gmail : 500/j) · 0 = illimité</span></label><input type="text" id="dcap" placeholder="auto"></div>
+          <div class="unsub-opt">
+            <input type="checkbox" id="warmupOn">
+            <label for="warmupOn">Warm-up progressif
+              <span class="why">compte neuf : montée en charge auto (~15/j la 1re semaine, +15/j — réglable dans Réglages) pour protéger la réputation du compte</span>
+            </label>
+          </div>
           <div class="warn-note" id="gmailWarn">Gmail impose ses propres limites (pas MailPilot) : ~500 envois/jour en gratuit, ~2 000 en Workspace. Google peut bloquer temporairement le compte au-delà — un cap de 500/jour sera posé par défaut pour s'arrêter avant.</div>
           <button class="btn btn-primary" id="addAccountBtn" type="button">Ajouter le compte</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RÉGLAGES ============ -->
+    <section class="view" id="view-reglages">
+      <div class="page-head">
+        <h1>Réglages du <em>pilotage</em></h1>
+        <p>Variables globales, rythme d'envoi, surveillance des réponses — tout se règle ici.</p>
+      </div>
+      <div class="stat-grid" style="grid-template-columns:1fr 1fr">
+        <div class="panel form-card">
+          <h2 class="form-h">Variables <em>globales</em></h2>
+          <p class="form-h-note">Définies une fois, utilisables dans tous les sujets et corps : <span class="mono" style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">{signature}</span>, <span class="mono" style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">{lien_calendly}</span>… Une ligne par variable, format <b>cle = valeur</b>.</p>
+          <div class="field" style="margin-bottom:12px">
+            <textarea id="varsText" style="min-height:110px" placeholder="signature = Amélie Fournier
+lien_calendly = https://cal.com/amelie"></textarea>
+          </div>
+          <button class="btn btn-primary" id="varsSaveBtn" type="button">Enregistrer les variables</button>
+        </div>
+        <div class="panel form-card">
+          <h2 class="form-h">Rythme <em>d'envoi</em></h2>
+          <div class="row2">
+            <div class="field"><label for="setCooldown">Cooldown entre campagnes (jours) <span class="hint">0 = off</span></label><input type="text" id="setCooldown"></div>
+            <div class="field"><label for="setDelay">Délai entre 2 mails (ms)</label><input type="text" id="setDelay"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="setWarmBase">Warm-up : envois au 1er jour</label><input type="text" id="setWarmBase"></div>
+            <div class="field"><label for="setWarmStep">Warm-up : +X par jour</label><input type="text" id="setWarmStep"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="setReport">Heure du rapport quotidien <span class="hint">HH:MM</span></label><input type="text" id="setReport"></div>
+            <div class="field"><label for="setImapPoll">Poll IMAP (minutes)</label><input type="text" id="setImapPoll"></div>
+          </div>
+          <button class="btn btn-primary" id="settingsSaveBtn" type="button">Enregistrer le rythme</button>
+        </div>
+        <div class="panel form-card" style="grid-column:1/-1">
+          <h2 class="form-h">Réponses « STOP » et <em>bounces</em></h2>
+          <p class="form-h-note">Configure la boîte de réception du compte : MailPilot la lit périodiquement. Une réponse « STOP » ou « désinscription » et les bounces durs (boîte inexistante) inscrivent automatiquement l'expéditeur dans les désinscriptions. Les bounces doux (boîte pleine, temporaire) sont ignorés. Pour Gmail : <b>imap.gmail.com</b>, port 993, le même mot de passe d'application. Par défaut l'hôte IMAP est dérivé du SMTP (smtp. → imap.) si tu actives la case ci-dessous.</p>
+          <div class="row2">
+            <div class="field"><label for="imapAcc">Compte surveillé</label><select id="imapAcc"></select></div>
+            <div class="field"><label for="imapHost">Serveur IMAP</label><input type="text" id="imapHost" placeholder="imap.gmail.com"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="imapPort">Port <span class="hint">993 = SSL</span></label><input type="text" id="imapPort" value="993"></div>
+            <div class="field"><label for="imapUser">Utilisateur</label><input type="text" id="imapUser" placeholder="toi@exemple.fr"></div>
+          </div>
+          <div class="field"><label for="imapPass">Mot de passe IMAP <span class="hint">laisser vide = inchangé</span></label><input type="password" id="imapPass"></div>
+          <button class="btn btn-primary" id="imapSaveBtn" type="button">Activer la surveillance</button>
+          <button class="btn btn-ghost" id="imapDisableBtn" type="button" style="margin-top:8px;width:100%">Désactiver pour ce compte</button>
         </div>
       </div>
     </section>
@@ -469,12 +557,48 @@ h2.form-h em{font-style:italic;color:var(--accent)}
   </main>
 </div>
 <div class="toast" id="toast"></div>
+<script src="/vendor/gsap.min.js"></script>
 
 <script>
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var state = { mode: "personalized", format: "text", accounts: [], templates: [], quotas: [] };
+  var state = { mode: "personalized", format: "text", accounts: [], templates: [], quotas: [], globals: {}, attachments: [] };
+
+  // ---------- GSAP (local, dégradé silencieux si absent) ----------
+  var hasGsap = typeof window.gsap !== "undefined" && window.gsap;
+  function prefersReduced(){
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  /** Entrée en cascade des blocs d'une vue (transform + opacity uniquement). */
+  function animateView(view){
+    if(!hasGsap || prefersReduced()) return;
+    var targets = view.querySelectorAll(".page-head, .panel, .section-h, .stat");
+    if(!targets.length) return;
+    gsap.killTweensOf(targets);
+    gsap.fromTo(targets, { y: 14, autoAlpha: 0 }, {
+      y: 0, autoAlpha: 1, duration: 0.5, ease: "power2.out",
+      stagger: 0.05, overwrite: "auto", clearProps: "all"
+    });
+  }
+  /** Compteur animé pour les stats (une seule fois par changement de valeur). */
+  function countUp(el, value){
+    var v = Number(value) || 0;
+    var last = el._counted;
+    el._counted = v;
+    if(!hasGsap || prefersReduced() || last === v){ el.textContent = String(v); return; }
+    var o = { n: Number(last) || 0 };
+    gsap.to(o, { n: v, duration: 0.6, ease: "power2.out",
+      onUpdate: function(){ el.textContent = String(Math.round(o.n)); } });
+  }
+  /** Petit frisson de Pilou quand un envoi part. */
+  function wiggleMascot(){
+    if(!hasGsap || prefersReduced()) return;
+    var m = document.querySelector(".mascot");
+    if(!m) return;
+    gsap.fromTo(m, { rotation: -3 }, { rotation: 3, duration: 0.12, repeat: 5, yoyo: true,
+      ease: "sine.inOut", clearProps: "transform" });
+  }
 
   // ---------- Thème ----------
   var themeMode = "light";
@@ -505,20 +629,24 @@ h2.form-h em{font-style:italic;color:var(--accent)}
       document.querySelectorAll(".nav-item").forEach(function(n){ n.classList.remove("active"); });
       document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
       item.classList.add("active");
-      $("view-" + item.dataset.view).classList.add("active");
+      var view = $("view-" + item.dataset.view);
+      view.classList.add("active");
+      animateView(view);
       window.scrollTo(0,0);
       if(item.dataset.view === "campagnes") loadCampaigns();
       if(item.dataset.view === "contacts"){ loadContacts(); loadSuppressions(); }
       if(item.dataset.view === "comptes") loadAccounts();
+      if(item.dataset.view === "reglages") loadReglages();
     });
   });
 
   // ---------- API ----------
-  function get(path){ return request(path, null); }
-  function post(path, data){ return request(path, JSON.stringify(data)); }
-  function request(path, body){
+  function get(path){ return request(path, null, "GET"); }
+  function post(path, data){ return request(path, JSON.stringify(data), "POST"); }
+  function put(path, data){ return request(path, JSON.stringify(data), "PUT"); }
+  function request(path, body, method){
     return fetch(path, {
-      method: body === null ? "GET" : "POST",
+      method: method || (body === null ? "GET" : "POST"),
       headers: { "Content-Type": "application/json" },
       body: body
     }).then(function(r){
@@ -557,32 +685,45 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         row.className = "recap-line";
         row.style.padding = "9px 0";
         var quotaTxt = a.daily_cap > 0
-          ? " · " + (a.sent_today || 0) + "/" + a.daily_cap + " envoyés aujourd'hui"
+          ? " · " + (a.sent_today || 0) + "/" + (a.effective_cap || a.daily_cap) + " envoyés aujourd'hui"
           : (a.sent_today ? " · " + a.sent_today + " envoyés aujourd'hui" : "");
-        row.innerHTML = "<span><b style='font-family:Inter;font-size:13.5px'>" + esc(a.label) + "</b><br>" +
+        var badges = "";
+        if(a.warmup === 1) badges += " <span class='badge badge-warm'>warm-up " + (a.warmup_cap || "?") + "/j</span>";
+        if(a.imap_host) badges += " <span class='badge badge-imap'>IMAP ✓</span>";
+        row.innerHTML = "<span><b style='font-family:Inter;font-size:13.5px'>" + esc(a.label) + badges + "</b><br>" +
           "<span class='mono'>" + esc(a.user) + " · " + esc(a.host) + ":" + a.port +
           (a.daily_cap > 0 ? " · cap " + a.daily_cap + "/j" : " · illimité") + quotaTxt + "</span></span>" +
-          "<button class='link-btn' type='button'>Test</button>";
-        row.querySelector("button").addEventListener("click", function(){
+          "<span style='white-space:nowrap'><button class='link-btn' data-act='test' type='button'>Test</button>" +
+          (a.warmup === 1 ? " <button class='link-btn' data-act='warm' type='button'>Stop warm-up</button>" : "") + "</span>";
+        row.querySelector("[data-act='test']").addEventListener("click", function(){
           toast("Envoi du mail test…");
           post("/api/accounts/" + a.id + "/test", {}).then(function(r){
             if(r.ok) toast(r.json.message || "Mail test envoyé.");
             else toast(r.json.error || "Échec du test.", true);
           });
         });
+        var warmBtn = row.querySelector("[data-act='warm']");
+        if(warmBtn) warmBtn.addEventListener("click", function(){
+          put("/api/accounts/" + a.id, { warmup: false }).then(function(r){
+            if(r.ok){ toast("Warm-up désactivé pour « " + a.label + " ». Le cap du compte redevient " + (a.daily_cap > 0 ? a.daily_cap + "/j" : "illimité") + "."); loadAccounts(); }
+            else toast(r.json.error || "Impossible.", true);
+          });
+        });
         list.appendChild(row);
       });
-      // Comptes disponibles pour la désinscription (vue Contacts).
-      var suppAcc = $("suppAcc");
-      var cur = suppAcc.value;
-      suppAcc.innerHTML = "";
-      state.accounts.forEach(function(a){
-        var opt = document.createElement("option");
-        opt.value = String(a.id);
-        opt.textContent = a.label;
-        suppAcc.appendChild(opt);
+      // Comptes disponibles pour la désinscription (vue Contacts) et l'IMAP (vue Réglages).
+      ["suppAcc", "imapAcc"].forEach(function(selId){
+        var sel = $(selId);
+        var cur = sel.value;
+        sel.innerHTML = "";
+        state.accounts.forEach(function(a){
+          var opt = document.createElement("option");
+          opt.value = String(a.id);
+          opt.textContent = a.label;
+          sel.appendChild(opt);
+        });
+        sel.value = cur;
       });
-      suppAcc.value = cur;
     });
   }
 
@@ -592,13 +733,14 @@ h2.form-h em{font-style:italic;color:var(--accent)}
       label: $("lbl").value.trim(), host: $("host").value.trim(),
       port: parseInt($("port").value, 10) || 465,
       user: $("user").value.trim(), password: $("pass").value,
-      from_name: $("fname").value.trim()
+      from_name: $("fname").value.trim(),
+      warmup: $("warmupOn").checked
     };
     // Cap vide → défaut selon l'hôte (Gmail : 500/jour).
     if(capRaw !== "") b.daily_cap = parseInt(capRaw, 10) || 0;
     if(!b.label || !b.host || !b.user || !b.password){ toast("Libellé, serveur, utilisateur et mot de passe sont requis.", true); return; }
     post("/api/accounts", b).then(function(r){
-      if(r.ok){ toast("Compte « " + b.label + " » ajouté."); $("lbl").value = $("host").value = $("user").value = $("pass").value = $("fname").value = $("dcap").value = ""; loadAccounts(); }
+      if(r.ok){ toast("Compte « " + b.label + " » ajouté." + (b.warmup ? " Warm-up activé : la montée en charge protège le compte." : "")); $("lbl").value = $("host").value = $("user").value = $("pass").value = $("fname").value = $("dcap").value = ""; $("warmupOn").checked = false; loadAccounts(); }
       else toast(r.json.error || "Ajout impossible.", true);
     });
   });
@@ -631,6 +773,53 @@ h2.form-h em{font-style:italic;color:var(--accent)}
       $("corps").placeholder = state.format === "html"
         ? "<p>Bonjour {prenom},</p>\n<p>une question sur votre organisme…</p>"
         : "Bonjour {prenom},\n\n...";
+    });
+  });
+
+  // ---------- Pièces jointes ----------
+  var ATT_MAX = 10 * 1024 * 1024;
+  function renderAttList(){
+    var host = $("attList");
+    host.innerHTML = "";
+    var total = 0;
+    state.attachments.forEach(function(f, i){
+      total += f.size;
+      var row = document.createElement("div");
+      row.className = "att-row";
+      row.innerHTML = "<b>" + esc(f.filename) + "</b><span class='att-size'>" + Math.round(f.size / 1024) + " ko</span>" +
+        "<button class='att-x' type='button' aria-label='Retirer'>×</button>";
+      row.querySelector(".att-x").addEventListener("click", function(){
+        state.attachments.splice(i, 1);
+        renderAttList();
+      });
+      host.appendChild(row);
+    });
+    if(total > 0){
+      var note = document.createElement("div");
+      note.className = "att-size";
+      note.style.paddingLeft = "2px";
+      note.textContent = "Total : " + (total / 1024 / 1024).toFixed(1) + " Mo";
+      host.appendChild(note);
+    }
+  }
+  $("attFile").addEventListener("change", function(){
+    var files = Array.from($("attFile").files || []);
+    var pending = files.map(function(f){
+      return f.arrayBuffer().then(function(buf){
+        var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+        return { filename: f.name, base64: b64, size: buf.byteLength };
+      });
+    });
+    Promise.all(pending).then(function(list){
+      var existing = state.attachments.reduce(function(s, f){ return s + f.size; }, 0);
+      var incoming = list.reduce(function(s, f){ return s + f.size; }, 0);
+      if(existing + incoming > ATT_MAX){
+        toast("Pièces jointes trop lourdes : 10 Mo maximum au total.", true);
+      } else {
+        state.attachments = state.attachments.concat(list);
+      }
+      $("attFile").value = "";
+      renderAttList();
     });
   });
 
@@ -719,6 +908,9 @@ h2.form-h em{font-style:italic;color:var(--accent)}
       recipients: dest,
       unsubscribe: $("unsub").checked
     };
+    if(state.attachments.length){
+      payload.attachments = state.attachments.map(function(f){ return { filename: f.filename, base64: f.base64 }; });
+    }
     if($("fuOn").checked && $("fuBody").value.trim()){
       payload.followup_days = parseInt($("fuDays").value, 10) || 0;
       payload.followup_subject = $("fuSubject").value;
@@ -736,7 +928,9 @@ h2.form-h em{font-style:italic;color:var(--accent)}
           ($("s2").checked ? "planifié(s)." : "en route. Pilou s'en occupe.");
         if(r.json.warnings && r.json.warnings.length) msg += "\n⚠️ " + r.json.warnings.join("\n⚠️ ");
         toast(msg);
+        wiggleMascot();
         $("sujet").value = ""; $("corps").value = ""; countDest();
+        state.attachments = []; renderAttList(); $("attFile").value = "";
         $("previewBox").classList.remove("show");
         loadStatus();
       } else {
@@ -903,9 +1097,9 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         });
         tbody.appendChild(tr);
       });
-      $("stToday").textContent = String(today);
-      $("stPending").textContent = String(pending);
-      $("stFailed").textContent = String(failed);
+      countUp($("stToday"), today);
+      countUp($("stPending"), pending);
+      countUp($("stFailed"), failed);
     });
   }
 
@@ -944,6 +1138,7 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         members.forEach(function(m){
           var row = document.createElement("div");
           row.className = "contact-row";
+          row.style.cursor = "pointer";
           var initials = (m.name || m.email).split(/[\s@.]+/).slice(0,2).map(function(s){ return (s[0] || "").toUpperCase(); }).join("") || "?";
           var varTags = Object.keys(m.vars || {}).filter(function(k){ return k !== "email" && k !== "nom"; })
             .map(function(k){ return "{" + k + "}"; }).join(" ") || "";
@@ -951,10 +1146,45 @@ h2.form-h em{font-style:italic;color:var(--accent)}
             "<div class='avatar'>" + esc(initials) + "</div>" +
             "<div class='who'><b>" + esc(m.name || m.email) + "</b><span>" + esc(m.email) + "</span></div>" +
             "<div class='tagvars'>" + esc(varTags) + "</div>";
+          row.addEventListener("click", function(){
+            toggleContactHistory(row, panel, m.email);
+          });
           panel.appendChild(row);
         });
         host.appendChild(panel);
       });
+    });
+  }
+
+  /** Ouvre/ferme l'historique d'un contact juste sous sa ligne. */
+  function toggleContactHistory(row, panel, email){
+    var next = row.nextElementSibling;
+    if(next && next.classList.contains("hist-block")){ next.remove(); return; }
+    panel.querySelectorAll(".hist-block").forEach(function(b){ b.remove(); });
+    var block = document.createElement("div");
+    block.className = "hist-block";
+    block.innerHTML = "<h5>Historique — " + esc(email) + "</h5><div class='hist-line'>Chargement…</div>";
+    row.after(block);
+    get("/api/contacts/history?email=" + encodeURIComponent(email)).then(function(res){
+      if(!res.ok){ block.querySelector(".hist-line").textContent = res.json.error || "Historique indisponible."; return; }
+      var h = res.json.history || [];
+      var html = "";
+      if(h.length === 0) html += "<div class='hist-line'>Aucun mail à cette adresse pour l'instant.</div>";
+      h.forEach(function(e){
+        var pill = e.status === "sent" ? "pill-sent" : e.status === "failed" ? "pill-fail" : "pill-sched";
+        var label = e.status === "sent" ? "reçu" : e.status === "failed" ? "échec" : e.status;
+        html += "<div class='hist-line'><span class='mono'>" + fmtDate(e.sent_at || e.scheduled_at) + "</span>" +
+          "<span class='hist-what'>" + esc(e.campaign_name || e.subject) + " · " + esc(e.account_label || "") + "</span>" +
+          "<span class='pill " + pill + "'>" + label + "</span></div>";
+      });
+      (res.json.suppressions || []).forEach(function(s){
+        html += "<div class='hist-line'><span class='mono'>" + fmtDate(s.created_at) + "</span>" +
+          "<span class='hist-what'>Désinscrit — " + esc(s.account_label || "") + (s.reason ? " · " + esc(s.reason) : "") + "</span></div>";
+      });
+      block.innerHTML = "<h5>Historique — " + esc(email) + "</h5>" + html;
+      if(hasGsap && !prefersReduced()){
+        gsap.fromTo(block, { y: -6, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out", clearProps: "all" });
+      }
     });
   }
 
@@ -1051,10 +1281,120 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     });
   }
 
+  // ---------- Variables globales ----------
+  function loadVars(){
+    return get("/api/vars").then(function(res){
+      if(!res.ok) return;
+      state.globals = res.json || {};
+      // Chips dans le Composer (entre les variables par contact et rien d'autre).
+      var host = $("globalChips");
+      host.innerHTML = "";
+      Object.keys(state.globals).forEach(function(k){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "chip";
+        b.dataset.var = "{" + k + "}";
+        b.textContent = "{" + k + "}";
+        b.title = state.globals[k];
+        b.addEventListener("click", function(){
+          var ta = $("corps");
+          var s = ta.selectionStart || ta.value.length;
+          ta.value = ta.value.slice(0, s) + b.dataset.var + ta.value.slice(s);
+          ta.focus();
+          updateRecap();
+        });
+        host.appendChild(b);
+      });
+      // Éditeur de la vue Réglages (seulement si l'utilisateur n'a pas édité).
+      var ta = $("varsText");
+      if(!ta._dirty){
+        ta.value = Object.keys(state.globals).map(function(k){ return k + " = " + state.globals[k]; }).join("\n");
+      }
+    });
+  }
+  $("varsText").addEventListener("input", function(){ $("varsText")._dirty = true; });
+  $("varsSaveBtn").addEventListener("click", function(){
+    var out = {};
+    $("varsText").value.split(/\r?\n/).forEach(function(line){
+      var eq = line.indexOf("=");
+      if(eq < 1) return;
+      var k = line.slice(0, eq).trim();
+      var v = line.slice(eq + 1).trim();
+      if(/^[a-zA-Z0-9_]+$/.test(k) && v) out[k] = v;
+    });
+    put("/api/vars", out).then(function(r){
+      if(r.ok){ toast(Object.keys(out).length + " variable(s) globale(s) enregistrée(s)."); $("varsText")._dirty = false; loadVars(); }
+      else toast(r.json.error || "Enregistrement impossible.", true);
+    });
+  });
+
+  // ---------- Réglages ----------
+  function loadReglages(){
+    loadVars();
+    get("/api/settings").then(function(res){
+      if(!res.ok) return;
+      $("setCooldown").value = res.json.cooldown_days || "7";
+      $("setDelay").value = res.json.send_delay_ms || "3000";
+      $("setWarmBase").value = res.json.warmup_base || "15";
+      $("setWarmStep").value = res.json.warmup_step || "15";
+      $("setReport").value = res.json.report_hour || "20:00";
+      $("setImapPoll").value = res.json.imap_poll_minutes || "5";
+    });
+    // Pré-remplir l'IMAP avec le compte sélectionné.
+    var accId = $("imapAcc").value;
+    var acc = state.accounts.find(function(a){ return String(a.id) === String(accId); }) || state.accounts[0];
+    if(acc){
+      $("imapHost").value = acc.imap_host || "";
+      $("imapPort").value = acc.imap_port || 993;
+      $("imapUser").value = acc.imap_host ? acc.imap_user : "";
+      $("imapPass").value = "";
+    }
+  }
+  $("settingsSaveBtn").addEventListener("click", function(){
+    put("/api/settings", {
+      cooldown_days: $("setCooldown").value.trim() || "7",
+      send_delay_ms: $("setDelay").value.trim() || "3000",
+      warmup_base: $("setWarmBase").value.trim() || "15",
+      warmup_step: $("setWarmStep").value.trim() || "15",
+      report_hour: $("setReport").value.trim() || "20:00",
+      imap_poll_minutes: $("setImapPoll").value.trim() || "5"
+    }).then(function(r){
+      if(r.ok) toast("Rythme d'envoi mis à jour.");
+      else toast(r.json.error || "Enregistrement impossible.", true);
+    });
+  });
+  $("imapAcc").addEventListener("change", loadReglages);
+  $("imapSaveBtn").addEventListener("click", function(){
+    var id = parseInt($("imapAcc").value, 10);
+    if(!id){ toast("Aucun compte à surveiller.", true); return; }
+    var b = {
+      imap_host: $("imapHost").value.trim(),
+      imap_port: parseInt($("imapPort").value, 10) || 993,
+      imap_user: $("imapUser").value.trim()
+    };
+    if($("imapPass").value) b.imap_password = $("imapPass").value;
+    if(!b.imap_host || !b.imap_user){ toast("Serveur et utilisateur IMAP sont requis.", true); return; }
+    if(!b.imap_password){ toast("Le mot de passe IMAP est requis à l'activation.", true); return; }
+    put("/api/accounts/" + id, b).then(function(r){
+      if(r.ok){ toast("Surveillance IMAP activée : les réponses STOP et bounces durs deviennent des désinscriptions auto."); $("imapPass").value = ""; loadAccounts(); }
+      else toast(r.json.error || "Impossible.", true);
+    });
+  });
+  $("imapDisableBtn").addEventListener("click", function(){
+    var id = parseInt($("imapAcc").value, 10);
+    if(!id){ toast("Aucun compte sélectionné.", true); return; }
+    put("/api/accounts/" + id, { imap_host: "" }).then(function(r){
+      if(r.ok){ toast("Surveillance désactivée pour ce compte."); loadAccounts(); loadReglages(); }
+      else toast(r.json.error || "Impossible.", true);
+    });
+  });
+
   // ---------- Init ----------
   loadAccounts();
   loadTemplates();
   loadStatus();
+  loadVars();
+  loadSuppressions();
+  animateView(document.querySelector(".view.active"));
   setInterval(loadStatus, 8000);
   setInterval(function(){
     if($("view-campagnes").classList.contains("active")) loadCampaigns();

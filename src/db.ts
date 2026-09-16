@@ -3,9 +3,12 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
+const dataDir = process.env.MAILPILOT_DATA_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
 const dbPath = path.join(dataDir, "mailpilot.db");
 fs.mkdirSync(dataDir, { recursive: true }); // premier lancement sur une install fraîche
+
+/** Dossier où sont stockées les pièces jointes des campagnes (data/attachments). */
+export const attachmentsDir = path.join(dataDir, "attachments");
 
 export const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
@@ -89,7 +92,13 @@ function addColumn(table: string, column: string, definition: string): void {
   }
 }
 addColumn("smtp_accounts", "daily_cap", "INTEGER NOT NULL DEFAULT 0");
+addColumn("smtp_accounts", "warmup", "INTEGER NOT NULL DEFAULT 0");
+addColumn("smtp_accounts", "imap_host", "TEXT NOT NULL DEFAULT ''");
+addColumn("smtp_accounts", "imap_port", "INTEGER NOT NULL DEFAULT 993");
+addColumn("smtp_accounts", "imap_user", "TEXT NOT NULL DEFAULT ''");
+addColumn("smtp_accounts", "imap_password_enc", "TEXT NOT NULL DEFAULT ''");
 addColumn("campaigns", "unsubscribe", "INTEGER NOT NULL DEFAULT 0");
+addColumn("campaigns", "attachments_json", "TEXT");
 addColumn("campaigns", "body_format", "TEXT NOT NULL DEFAULT 'text'");
 addColumn("campaigns", "parent_id", "INTEGER");
 addColumn("campaigns", "followup_days", "INTEGER NOT NULL DEFAULT 0");
@@ -113,14 +122,76 @@ export function sentToday(accountId: number): number {
   return row.n;
 }
 
-/** Quota restant aujourd'hui (null = illimité, cap 0). */
-export function remainingQuota(accountId: number): number | null {
+/** Plafond du warm-up aujourd'hui (jour N depuis la création du compte) : null si warm-up inactif. */
+export function warmupCap(accountId: number): number | null {
+  const acc = db
+    .prepare("SELECT warmup, created_at FROM smtp_accounts WHERE id = ?")
+    .get(accountId) as { warmup: number; created_at: string } | undefined;
+  if (!acc || acc.warmup !== 1) return null;
+  const created = new Date(acc.created_at.replace(" ", "T") + "Z");
+  const day = Number.isNaN(created.getTime())
+    ? 1
+    : Math.floor((Date.now() - created.getTime()) / 86_400_000) + 1;
+  const base = Number(getSetting("warmup_base", "15"));
+  const step = Number(getSetting("warmup_step", "15"));
+  return Math.max(1, base + Math.max(0, day - 1) * step);
+}
+
+/**
+ * Cap effectif du compte aujourd'hui : le plus strict entre daily_cap
+ * (limite du fournisseur, 0 = illimité) et le plan de warm-up (si activé).
+ * null = aucune limite appliquée par MailPilot.
+ */
+export function effectiveCap(accountId: number): number | null {
   const acc = db
     .prepare("SELECT daily_cap FROM smtp_accounts WHERE id = ?")
     .get(accountId) as { daily_cap: number } | undefined;
   const cap = acc?.daily_cap ?? 0;
-  if (cap <= 0) return null;
+  const warm = warmupCap(accountId);
+  const merged = cap > 0 && warm !== null ? Math.min(cap, warm) : cap > 0 ? cap : warm;
+  return merged !== null && merged > 0 ? merged : null;
+}
+
+/** Quota restant aujourd'hui (null = illimité). Respecte le warm-up s'il est activé. */
+export function remainingQuota(accountId: number): number | null {
+  const cap = effectiveCap(accountId);
+  if (cap === null) return null;
   return Math.max(0, cap - sentToday(accountId));
+}
+
+/** Emails auxquels ce compte a envoyé un mail dans les N derniers jours (cooldown). */
+export function recentlyContactedEmails(accountId: number, days: number): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT r.email FROM recipients r JOIN campaigns cp ON cp.id = r.campaign_id
+       WHERE cp.account_id = ? AND r.status = 'sent' AND r.sent_at >= datetime('now', ?)`
+    )
+    .all(accountId, `-${Math.max(1, Math.floor(days))} days`) as { email: string }[];
+  return new Set(rows.map((r) => r.email.toLowerCase()));
+}
+
+// ---------- Variables globales ----------
+
+/** Variables globales {signature}... définies une fois, valables pour tous les contacts. */
+export function globalVars(): Record<string, string> {
+  try {
+    const raw = JSON.parse(getSetting("global_vars", "{}"));
+    if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v === "string") out[k] = v;
+      }
+      return out;
+    }
+  } catch {
+    // réglage corrompu : on ignore, les {x} resteront simplement vides
+  }
+  return {};
+}
+
+/** Fusionne/remplace des variables globales (vide = suppression de toutes). */
+export function setGlobalVars(vars: Record<string, string>): void {
+  setSetting("global_vars", JSON.stringify(vars));
 }
 
 /** Crée une campagne + ses destinataires dans une transaction. Refuse > max (settings max_recipients, défaut 500). */
@@ -135,6 +206,7 @@ export function createCampaign(input: {
   bodyFormat?: "text" | "html";
   parentId?: number;
   followup?: { days: number; subject: string; body: string } | null;
+  attachments?: { filename: string; base64: string }[];
   recipients: { email: string; vars: Record<string, string> }[];
 }): { id: number } {
   const max = Number(getSetting("max_recipients", "500"));
@@ -175,9 +247,42 @@ export function createCampaign(input: {
     for (const r of input.recipients) {
       insertRecipient.run(id, r.email, JSON.stringify(r.vars));
     }
+    if (input.attachments && input.attachments.length > 0) {
+      writeAttachments(id, input.attachments);
+    }
     return id;
   });
   return { id: tx() };
+}
+
+/**
+ * Écrit les pièces jointes d'une campagne sur disque (data/attachments/<id>/)
+ * et enregistre la liste dans campaigns.attachments_json. Lève si un base64
+ * est invalide ou le nom de fichier dangereux.
+ */
+function writeAttachments(
+  campaignId: number,
+  files: { filename: string; base64: string }[]
+): void {
+  const safeName = (name: string): string => {
+    const base = name.replace(/[\\/:*?"<>|]/g, "_").replace(/^\.+/, "_").trim();
+    if (!base || base === "." || base === "..") throw new Error(`Nom de pièce jointe invalide : "${name}"`);
+    return base.slice(0, 120);
+  };
+  const dir = path.join(attachmentsDir, String(campaignId));
+  const list: { filename: string; path: string; size: number }[] = [];
+  for (const f of files) {
+    const filename = safeName(f.filename);
+    const buf = Buffer.from(f.base64, "base64");
+    if (buf.length === 0) throw new Error(`Pièce jointe vide : "${f.filename}"`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), buf);
+    list.push({ filename, path: path.join(dir, filename), size: buf.length });
+  }
+  db.prepare("UPDATE campaigns SET attachments_json = ? WHERE id = ?").run(
+    JSON.stringify(list),
+    campaignId
+  );
 }
 
 export function getSetting(key: string, fallback: string): string {

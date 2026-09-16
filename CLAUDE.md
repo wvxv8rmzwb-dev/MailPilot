@@ -2,7 +2,7 @@
 
 Outil local d'envoi d'emails programmables, connecté à Claude Code via MCP. Mascotte : Pilou 🐱.
 
-Fonctions : campagnes texte ou **HTML** (fallback texte auto), variables `{x}`, quota `daily_cap` respecté en cours d'envoi, liste de **suppressions** (désinscriptions) par compte, **relances auto** N jours après, retry auto des échecs temporaires, envoi test de rendu à soi-même, import CSV fichier (UTF-8/Windows-1252), export CSV des résultats.
+Fonctions : campagnes texte ou **HTML** (fallback texte auto), variables `{x}` + **variables globales** (settings `global_vars`, ex `{signature}`), pièces **jointes** (data/attachments/<id>/), quota `daily_cap` respecté en cours d'envoi, liste de **suppressions** (désinscriptions) par compte, **relances auto** N jours après, **cooldown inter-campagnes** (settings `cooldown_days`, défaut 7 j — un contact servi récemment est exclu avec warning), retry auto des échecs temporaires, envoi test de rendu à soi-même, import CSV fichier (UTF-8/Windows-1252), export CSV des résultats, **rapport quotidien** à soi-même (settings `report_hour`, défaut 20:00, saute les comptes sans activité), **warm-up progressif** par compte (case à cocher ; plafond `warmup_base` + `warmup_step`×jour, croise le daily_cap — le plus strict gagne, via `effectiveCap`/`remainingQuota`), **historique par contact** (dashboard, clic sur un contact), **poll IMAP** des réponses STOP + bounces durs → suppressions auto (`src/imap.ts`, config par compte via API/dashboard, poll toutes les `imap_poll_minutes`).
 
 ## Architecture (2 processus, une SQLite WAL)
 
@@ -12,8 +12,8 @@ Fonctions : campagnes texte ou **HTML** (fallback texte auto), variables `{x}`, 
 ## Règles strictes
 
 - **`data/` ne se commit jamais** (contient la base et la clé `.secret`). Déjà gitignored — ne pas désactiver.
-- **Les mots de passe SMTP (AES-256-GCM) ne sortent jamais** : aucun log, aucune réponse d'API/MCP, aucun exemple avec un vrai mot de passe.
-- **Dashboard en localhost uniquement** — n'ajouter aucune exposition réseau.
+- **Les mots de passe SMTP (AES-256-GCM) ne sortent jamais** : aucun log, aucune réponse d'API/MCP, aucun exemple avec un vrai mot de passe. Idem pour `imap_password_enc`.
+- **Dashboard en localhost uniquement** — n'ajouter aucune exposition réseau. (Pas de tracking ouvertures/clics : exigerait un endpoint public, interdit par cette règle.)
 - Cap 500 destinataires par campagne (settings `max_recipients`), format de ligne : `email ; nom ; cle=valeur`.
 
 ## Commandes
@@ -37,6 +37,11 @@ npm run service:install / service:uninstall   # service Windows (PowerShell admi
 - **Format HTML** (`campaigns.body_format`) : le corps EST du HTML, le texte est dégradé via `htmlToText` (render.ts) ; en mode `text` c'est l'inverse (`textToHtml`).
 - **Suppressions** (`add_suppression`/`remove_suppression`) : filtrées dans `queueCampaign` et à la création des relances — un désinscrit ne doit plus jamais recevoir de mail du compte.
 - **Relances auto** (`followup_days/subject/body` sur campaigns) : programmées par `scheduleFollowUp()` quand une campagne finit avec des envois `sent` ; ciblent les `sent` uniquement. `auto_retries` plafonne le retry auto des échecs temporaires globaux (settings `max_auto_retries`, défaut 1).
+- **Warm-up** (`smtp_accounts.warmup`) : `effectiveCap()` = min(daily_cap, plafond warm-up du jour). `postponeIfDailyCapped` utilise `remainingQuota` (ne pas remettre une lecture brute de `daily_cap`).
+- **Pièces jointes** : `attachments_json` sur campaigns = [{filename, path}] ; fichiers réellement écrits dans `data/attachments/<id>/` (base64 reçu de l'API, 10 Mo max total, noms neutralisés).
+- **IMAP** (`src/imap.ts`) : ne traite que les messages **non lus**, les marque lus ensuite ; bounce doux (4.x.x, boîte pleine) → ignoré, dur (5.x.x, user unknown) → suppression. Config IMAP par compte : `imap_host` vide = désactivé.
+- `MAILPILOT_DATA_DIR` (env) redirige `data/` — utilisé par les tests (base isolée), jamais sur la vraie install.
+- GSAP est servi localement via `/vendor/gsap.min.js` (node_modules/gsap) — pas de CDN, le dashboard doit marcher hors-ligne.
 
 ## Liens
 

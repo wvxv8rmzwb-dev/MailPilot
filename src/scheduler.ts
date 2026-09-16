@@ -1,5 +1,6 @@
 import { db, getSetting, setSetting, sentToday, remainingQuota, suppressedEmails, createCampaign } from "./db.js";
-import { sendToRecipients, isTransientError, type SmtpAccount } from "./mailer.js";
+import { sendToRecipients, isTransientError, createTransport, type SmtpAccount } from "./mailer.js";
+import { pollImapAccounts } from "./imap.js";
 
 type CampaignRow = {
   id: number;
@@ -9,6 +10,7 @@ type CampaignRow = {
   mode: "common" | "personalized";
   unsubscribe: number;
   body_format: string;
+  attachments_json: string | null;
 };
 
 type RecipientRow = {
@@ -18,6 +20,8 @@ type RecipientRow = {
 };
 
 let running = false;
+let lastImapPoll = 0;
+let lastReportDate = "";
 
 /** Boucle du daemon : toutes les 15 s, envoie les campagnes dues. */
 export function startScheduler(): void {
@@ -48,11 +52,13 @@ export async function tick(): Promise<void> {
   running = true;
   try {
     setSetting("daemon_heartbeat", new Date().toISOString());
+    await maybePollImap();
+    maybeSendDailyReport();
     // Fenêtre d'envoi (heure locale) : hors fenêtre, on attend la prochaine ouverture.
     if (!inSendWindow()) return;
     const due = db
       .prepare(
-        `SELECT id, account_id, subject, body, mode, unsubscribe, body_format
+        `SELECT id, account_id, subject, body, mode, unsubscribe, body_format, attachments_json
          FROM campaigns WHERE status = 'scheduled' AND scheduled_at <= datetime('now')`
       )
       .all() as CampaignRow[];
@@ -62,6 +68,75 @@ export async function tick(): Promise<void> {
     }
   } finally {
     running = false;
+  }
+}
+
+/** Poll IMAP (réponses STOP, bounces) au plus toutes les imap_poll_minutes. */
+async function maybePollImap(): Promise<void> {
+  const minutes = Math.max(1, Number(getSetting("imap_poll_minutes", "5")));
+  if (Date.now() - lastImapPoll < minutes * 60_000) return;
+  lastImapPoll = Date.now();
+  await pollImapAccounts().catch(() => undefined);
+}
+
+/**
+ * Rapport quotidien à soi-même (une fois par jour, après report_hour local,
+ * défaut 20:00) : envois/échecs du jour, campagnes en attente, quota restant.
+ */
+export function maybeSendDailyReport(now = new Date()): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastReportDate === today) return;
+  const [h, m] = getSetting("report_hour", "20:00").split(":").map(Number);
+  const cur = now.getHours() * 60 + (now.getMinutes() ?? 0);
+  if (cur < (h ?? 20) * 60 + (m ?? 0)) return;
+  lastReportDate = today;
+
+  const accounts = db.prepare("SELECT * FROM smtp_accounts").all() as SmtpAccount[];
+  for (const acc of accounts) {
+    const sent = sentToday(acc.id);
+    const failedToday = (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM recipients r JOIN campaigns cp ON cp.id = r.campaign_id
+           WHERE cp.account_id = ? AND r.status = 'failed' AND r.sent_at IS NULL AND r.error IS NOT NULL`
+        )
+        .get(acc.id) as { n: number }
+    ).n;
+    const campList = (
+      db
+        .prepare(
+          `SELECT id, name, scheduled_at FROM campaigns
+           WHERE account_id = ? AND status = 'scheduled' ORDER BY scheduled_at LIMIT 5`
+        )
+        .all(acc.id) as { id: number; name: string; scheduled_at: string }[]
+    )
+      .map((c) => `  - #${c.id} ${c.name} — prévu ${c.scheduled_at}`)
+      .join("\n");
+    const cap = Number(
+      (db.prepare("SELECT daily_cap FROM smtp_accounts WHERE id = ?").get(acc.id) as { daily_cap: number }).daily_cap
+    );
+    const quota =
+      cap > 0
+        ? `Quota du jour : ${sent}/${cap} (reste ${Math.max(0, cap - sent)}).`
+        : `Envois du jour : ${sent} (illimité).`;
+    const body =
+      `Rapport quotidien MailPilot — compte ${acc.label} (${acc.user})\n\n` +
+      `${quota}\n` +
+      `Échecs en attente de relance manuelle : ${failedToday}.\n` +
+      (campList ? `\nCampagnes programmées :\n${campList}\n` : "") +
+      `\nDashboard : http://localhost:3777`;
+    if (sent === 0 && failedToday === 0) continue; // rien à signaler sur ce compte
+    createTransport(acc)
+      .sendMail({
+        from: acc.from_name ? { name: acc.from_name, address: acc.user } : acc.user,
+        to: acc.user,
+        subject: `MailPilot — rapport du jour (${today})`,
+        text: body,
+      })
+      .then(() => console.log(`Rapport quotidien envoyé à ${acc.user}.`))
+      .catch((err: unknown) =>
+        console.log(`Rapport quotidien : échec d'envoi à ${acc.user} : ${err instanceof Error ? err.message : String(err)}`)
+      );
   }
 }
 
@@ -78,21 +153,17 @@ export function inSendWindow(now = new Date()): boolean {
 }
 
 /**
- * Cap quotidien du compte : si déjà atteint, la campagne attend demain même
- * heure (le compte SMTP risque un blocage au-delà de sa limite).
+ * Cap effectif du compte (daily_cap ∩ warm-up) : si déjà atteint, la campagne
+ * attend demain même heure (le compte SMTP risque un blocage au-delà).
  * Retourne true si la campagne a été repoussée.
  */
 function postponeIfDailyCapped(c: CampaignRow): boolean {
-  const acc = db
-    .prepare("SELECT daily_cap FROM smtp_accounts WHERE id = ?")
-    .get(c.account_id) as { daily_cap: number } | undefined;
-  const max = acc?.daily_cap ?? 0;
-  if (max <= 0) return false;
-  if (sentToday(c.account_id) < max) return false;
+  const rem = remainingQuota(c.account_id);
+  if (rem === null || rem > 0) return false;
   db.prepare(
     "UPDATE campaigns SET scheduled_at = datetime(scheduled_at, '+1 day') WHERE id = ? AND status = 'scheduled'"
   ).run(c.id);
-  console.log(`Campagne #${c.id} : cap quotidien de ${max} atteint, repoussée à demain.`);
+  console.log(`Campagne #${c.id} : cap quotidien (ou warm-up) atteint, repoussée à demain.`);
   return true;
 }
 
@@ -143,7 +214,7 @@ export async function sendCampaign(c: CampaignRow): Promise<void> {
       if (ok) updOk.run(row.id);
       else updKo.run(info.error ?? "Erreur inconnue", row.id);
     },
-    { unsubscribe: c.unsubscribe === 1, bodyFormat: c.body_format === "html" ? "html" : "text", remaining: remainingQuota(c.account_id) }
+    { unsubscribe: c.unsubscribe === 1, bodyFormat: c.body_format === "html" ? "html" : "text", remaining: remainingQuota(c.account_id), attachments: safeAttachments(c.attachments_json) }
   );
 
   const counts = db
@@ -248,5 +319,22 @@ function safeVars(json: string): Record<string, string> {
     return typeof parsed === "object" && parsed !== null ? parsed : {};
   } catch {
     return {};
+  }
+}
+
+/** Pièces jointes enregistrées pour la campagne ([] si aucune / JSON invalide). */
+function safeAttachments(json: string | null): { filename: string; path: string }[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (a): a is { filename: string; path: string } =>
+        typeof a === "object" && a !== null &&
+        typeof (a as { filename?: unknown }).filename === "string" &&
+        typeof (a as { path?: unknown }).path === "string"
+    );
+  } catch {
+    return [];
   }
 }
