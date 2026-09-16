@@ -1,12 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFileSync } from "node:fs";
-import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate } from "./db.js";
+import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate, addSuppression, listSuppressions, removeSuppression, defaultDailyCap } from "./db.js";
 import { encrypt } from "./crypto.js";
 import { queueCampaign } from "./campaigns.js";
-import { sendTest } from "./mailer.js";
-import { parseCsv, renderTemplate, findMissingVars } from "./render.js";
+import { sendTest, sendPreview } from "./mailer.js";
+import { parseCsv, parseRecipientLines, renderTemplate, findMissingVars } from "./render.js";
 
 /**
  * Serveur MCP MailPilot (stdio). Il n'envoie rien lui-même :
@@ -46,12 +45,27 @@ server.registerTool(
   },
   async () => {
     const rows = db
-      .prepare("SELECT label, user, host, port FROM smtp_accounts ORDER BY id")
-      .all() as { label: string; user: string; host: string; port: number }[];
+      .prepare(
+        `SELECT a.label, a.user, a.host, a.port, a.daily_cap,
+                (SELECT COUNT(*) FROM recipients r JOIN campaigns c2 ON c2.id = r.campaign_id
+                 WHERE c2.account_id = a.id AND r.status = 'sent' AND r.sent_at >= date('now')) AS sent_today
+         FROM smtp_accounts a ORDER BY a.id`
+      )
+      .all() as { label: string; user: string; host: string; port: number; daily_cap: number; sent_today: number }[];
     if (rows.length === 0) {
       return text("Aucun compte SMTP configuré. Utilise add_account d'abord.");
     }
-    return text(rows.map((r) => `- ${r.label} (${r.user} via ${r.host}:${r.port})`).join("\n") + daemonHint());
+    return text(
+      rows
+        .map((r) => {
+          const quota =
+            r.daily_cap > 0
+              ? ` — quota : ${r.sent_today}/${r.daily_cap} aujourd'hui (reste ${Math.max(0, r.daily_cap - r.sent_today)})`
+              : ` — ${r.sent_today} envoyé(s) aujourd'hui (illimité)`;
+          return `- ${r.label} (${r.user} via ${r.host}:${r.port})${quota}`;
+        })
+        .join("\n") + daemonHint()
+    );
   }
 );
 
@@ -68,16 +82,25 @@ server.registerTool(
       user: z.string().describe("Adresse de l'envoyeur"),
       password: z.string().describe("Mot de passe ou mot de passe d'application"),
       from_name: z.string().default("").describe("Nom affiché, ex: Mala"),
+      daily_cap: z.number().int().optional().describe("Cap quotidien d'envois. Omis : 500 pour Gmail (limite serveur), illimité sinon."),
     },
   },
   async (b) => {
     try {
       const res = db
         .prepare(
-          "INSERT INTO smtp_accounts (label, host, port, secure, user, password_enc, from_name) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO smtp_accounts (label, host, port, secure, user, password_enc, from_name, daily_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
-        .run(b.label.trim(), b.host.trim(), b.port, b.port === 587 ? 0 : 1, b.user.trim(), encrypt(b.password), b.from_name.trim());
-      return text(`Compte "${b.label}" ajouté (id ${Number(res.lastInsertRowid)}).`);
+        .run(b.label.trim(), b.host.trim(), b.port, b.port === 587 ? 0 : 1, b.user.trim(), encrypt(b.password), b.from_name.trim(), b.daily_cap ?? defaultDailyCap(b.host));
+      const cap = b.daily_cap ?? defaultDailyCap(b.host);
+      // Limites imposées par Google (pas par MailPilot) — à connaître avant d'envoyer.
+      const googleWarn = /gmail|googlemail/i.test(b.host)
+        ? "\n⚠️ Limites Google (pas MailPilot) : ~500 envois/jour sur un Gmail gratuit, ~2 000 en Workspace. Google peut bloquer temporairement le compte au-delà — le cap posé fait s'arrêter MailPilot avant."
+        : "";
+      return text(
+        `Compte "${b.label}" ajouté (id ${Number(res.lastInsertRowid)}, cap ${cap > 0 ? cap + "/jour" : "illimité — domaine perso, aucune limite imposée par MailPilot"}).` +
+        googleWarn
+      );
     } catch (err) {
       return fail(err);
     }
@@ -111,7 +134,7 @@ const recipientsShape = {
   recipients: z
     .string()
     .optional()
-    .describe("Destinataires, une ligne par contact : `email ; nom ; cle=valeur ; cle=valeur` (max 100)"),
+    .describe("Destinataires, une ligne par contact : `email ; nom ; cle=valeur ; cle=valeur` (max 500)"),
   list: z.string().optional().describe("Nom d'une liste de contacts existante (voir list_contacts)"),
   csv: z.string().optional().describe("Contacts en CSV brut (1re ligne d'en-tête optionnelle : email,nom,prenom,...)"),
 };
@@ -119,11 +142,17 @@ const recipientsShape = {
 const bodyShape = {
   account: z.string().describe("Libellé du compte envoyeur (voir list_accounts)"),
   subject: z.string().describe("Sujet du mail. Variables {prenom}, {nom}, {entreprise}... autorisées"),
-  body: z.string().describe("Corps du mail en texte. Variables {prenom}, {nom}... remplacées par contact"),
+  body: z.string().describe("Corps du mail. Variables {prenom}, {nom}... remplacées par contact"),
+  body_format: z.enum(["text", "html"]).default("text")
+    .describe("text : corps texte brut (HTML simple dérivé). html : le corps EST du HTML complet (fallback texte dégradé automatiquement)"),
   mode: z.enum(["personalized", "common"]).default("personalized")
     .describe("personalized : variables remplacées par contact. common : même texte pour tous"),
   unsubscribe: z.boolean().default(true)
     .describe("Ajoute la mention de désinscription + header List-Unsubscribe (recommandé, obligatoire en cold email FR)"),
+  followup_days: z.number().int().optional()
+    .describe("Relance auto : nombre de jours après l'envoi initial pour renvoyer un follow-up aux destinataires servis"),
+  followup_subject: z.string().optional().describe("Sujet du follow-up (variables {x} autorisées) — requis si followup_days"),
+  followup_body: z.string().optional().describe("Corps du follow-up (variables {x} autorisées) — requis si followup_days"),
 };
 
 function resolveRecipients(b: {
@@ -131,18 +160,31 @@ function resolveRecipients(b: {
   subject: string;
   body: string;
   mode: "common" | "personalized";
+  body_format?: "text" | "html";
   unsubscribe?: boolean;
+  followup_days?: number;
+  followup_subject?: string;
+  followup_body?: string;
   scheduled_at?: string;
   recipients?: string;
   list?: string;
   csv?: string;
 }) {
+  let followup: { days: number; subject: string; body: string } | null = null;
+  if (b.followup_days && b.followup_days > 0) {
+    if (!b.followup_subject?.trim() || !b.followup_body?.trim()) {
+      throw new Error("Relance auto (followup_days) : followup_subject et followup_body sont requis.");
+    }
+    followup = { days: b.followup_days, subject: b.followup_subject, body: b.followup_body };
+  }
   return queueCampaign({
     accountLabel: b.account,
     subject: b.subject,
     body: b.body,
     mode: b.mode,
+    bodyFormat: b.body_format,
     unsubscribe: b.unsubscribe,
+    followup,
     scheduledAt: b.scheduled_at ?? null,
     recipientsText: b.recipients,
     listName: b.list,
@@ -163,7 +205,7 @@ server.registerTool(
   {
     title: "Envoyer maintenant",
     description:
-      "Crée une campagne d'envoi immédiat (maximum 100 destinataires). Chaque contact reçoit son propre mail, jamais de liste visible. Le daemon effectue l'envoi avec un délai anti-spam entre chaque mail.",
+      "Crée une campagne d'envoi immédiat (maximum 500 destinataires). Chaque contact reçoit son propre mail, jamais de liste visible. Le daemon effectue l'envoi avec un délai anti-spam entre chaque mail.",
     inputSchema: { ...bodyShape, ...recipientsShape },
   },
   async (b) => {
@@ -183,7 +225,7 @@ server.registerTool(
   {
     title: "Programmer un envoi",
     description:
-      "Crée une campagne planifiée (maximum 100 destinataires). Le daemon enverra à la date donnée, même si la session Claude Code est fermée.",
+      "Crée une campagne planifiée (maximum 500 destinataires). Le daemon enverra à la date donnée, même si la session Claude Code est fermée.",
     inputSchema: {
       ...bodyShape,
       ...recipientsShape,
@@ -322,6 +364,114 @@ server.registerTool(
   }
 );
 
+// ---------- Test de rendu ----------
+
+server.registerTool(
+  "send_test",
+  {
+    title: "Envoyer un test de rendu",
+    description: "Envoie le mail composé (sujet + corps, avec variables d'exemple) à la propre adresse du compte : vérifie le rendu réel avant de lancer une campagne.",
+    inputSchema: {
+      account: z.string().describe("Libellé du compte envoyeur (voir list_accounts)"),
+      subject: z.string().describe("Sujet avec ses variables {x}"),
+      body: z.string().describe("Corps avec ses variables {x} (texte ou HTML selon body_format)"),
+      mode: z.enum(["personalized", "common"]).default("personalized").describe("Mode de rendu des variables"),
+      body_format: z.enum(["text", "html"]).default("text").describe("text : corps texte. html : corps HTML"),
+      sample_vars: z.record(z.string()).optional().describe("Valeurs d'exemple, ex: {prenom: 'Amélie', entreprise: 'ACME'}"),
+    },
+  },
+  async (b) => {
+    const account = db
+      .prepare("SELECT * FROM smtp_accounts WHERE label = ?")
+      .get(b.account) as Parameters<typeof sendPreview>[0] | undefined;
+    if (!account) return fail(new Error(`Compte "${b.account}" introuvable.`));
+    try {
+      await sendPreview(account, b.subject, b.body, b.mode, b.body_format, b.sample_vars ?? {});
+      return text(`Mail test (rendu réel) envoyé à ${account.user}. Vérifie la boîte de réception.`);
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+// ---------- Suppressions (désinscriptions) ----------
+
+server.registerTool(
+  "add_suppression",
+  {
+    title: "Désinscrire un contact",
+    description: "Ajoute un email à la liste de suppression d'un compte : il sera exclu automatiquement de toutes les futures campagnes (et relances) de ce compte.",
+    inputSchema: {
+      account: z.string().describe("Libellé du compte envoyeur (voir list_accounts)"),
+      email: z.string().describe("Email à désinscrire"),
+      reason: z.string().optional().describe("Motif, ex: réponse STOP, bounce dur"),
+    },
+  },
+  async (b) => {
+    const account = db.prepare("SELECT id FROM smtp_accounts WHERE label = ?").get(b.account) as
+      | { id: number }
+      | undefined;
+    if (!account) return fail(new Error(`Compte "${b.account}" introuvable.`));
+    if (!b.email.includes("@")) return fail(new Error("Email invalide."));
+    const created = addSuppression(account.id, b.email, b.reason ?? "");
+    return text(
+      created
+        ? `${b.email} est désinscrit du compte "${b.account}". Il ne recevra plus rien de ce compte.`
+        : `${b.email} était déjà désinscrit du compte "${b.account}".`
+    );
+  }
+);
+
+server.registerTool(
+  "list_suppressions",
+  {
+    title: "Lister les désinscriptions",
+    description: "Liste les emails désinscrits (tous comptes ou un seul).",
+    inputSchema: {
+      account: z.string().optional().describe("Filtrer sur un compte envoyeur (optionnel)"),
+    },
+  },
+  async (b) => {
+    let accountId: number | undefined;
+    if (b.account) {
+      const acc = db.prepare("SELECT id FROM smtp_accounts WHERE label = ?").get(b.account) as { id: number } | undefined;
+      if (!acc) return fail(new Error(`Compte "${b.account}" introuvable.`));
+      accountId = acc.id;
+    }
+    const rows = listSuppressions(accountId);
+    if (rows.length === 0) return text("Aucune désinscription enregistrée.");
+    const labels = new Map(
+      (db.prepare("SELECT id, label FROM smtp_accounts").all() as { id: number; label: string }[]).map((a) => [a.id, a.label])
+    );
+    return text(
+      rows
+        .map((r) => `- ${r.email} — compte "${labels.get(r.account_id) ?? r.account_id}"${r.reason ? ` (${r.reason})` : ""} — depuis ${r.created_at}`)
+        .join("\n")
+    );
+  }
+);
+
+server.registerTool(
+  "remove_suppression",
+  {
+    title: "Réinscrire un contact",
+    description: "Retire un email de la liste de suppression d'un compte : il recevra de nouveau les campagnes.",
+    inputSchema: {
+      account: z.string().describe("Libellé du compte envoyeur"),
+      email: z.string().describe("Email à réinscrire"),
+    },
+  },
+  async (b) => {
+    const acc = db.prepare("SELECT id FROM smtp_accounts WHERE label = ?").get(b.account) as { id: number } | undefined;
+    if (!acc) return fail(new Error(`Compte "${b.account}" introuvable.`));
+    return text(
+      removeSuppression(acc.id, b.email)
+        ? `${b.email} est réinscrit pour le compte "${b.account}".`
+        : `${b.email} n'était pas désinscrit du compte "${b.account}".`
+    );
+  }
+);
+
 // ---------- Modèles ----------
 
 server.registerTool(
@@ -382,7 +532,9 @@ server.registerTool(
   },
   async (b) => {
     try {
-      const contacts = parseCsv(b.csv);
+      // CSV d'abord ; si rien de valide, tente le format lignes `email ; nom ; cle=valeur`.
+      let contacts = parseCsv(b.csv);
+      if (contacts.length === 0) contacts = parseRecipientLines(b.csv);
       if (contacts.length === 0) return fail(new Error("Aucun contact valide dans le CSV."));
       const upsert = db.prepare(
         `INSERT INTO contacts (list_name, email, name, vars_json) VALUES (?, ?, ?, ?)

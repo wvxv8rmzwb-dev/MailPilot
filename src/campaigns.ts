@@ -1,4 +1,4 @@
-import { db, createCampaign, sqliteNow } from "./db.js";
+import { db, createCampaign, remainingQuota, suppressedEmails, sqliteNow } from "./db.js";
 import { parseCsv, parseRecipientLines, findMissingVars, type ParsedContact } from "./render.js";
 
 export type CampaignInput = {
@@ -8,6 +8,8 @@ export type CampaignInput = {
   mode: "common" | "personalized";
   scheduledAt: string | null;
   unsubscribe?: boolean;
+  bodyFormat?: "text" | "html";
+  followup?: { days: number; subject: string; body: string } | null;
   recipientsText?: string;
   listName?: string;
   csvText?: string;
@@ -61,6 +63,27 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
 
   const warnings: string[] = [];
 
+  // Relance auto : sans sujet ou corps, elle ne partirait jamais — on refuse.
+  if (input.followup && input.followup.days > 0) {
+    if (!input.followup.subject?.trim() || !input.followup.body?.trim()) {
+      throw new Error("Relance auto (followup_days) : followup_subject et followup_body sont requis.");
+    }
+  }
+
+  // Désinscrits du compte : exclus d'office, ils ne doivent plus rien recevoir.
+  const supp = suppressedEmails(account.id);
+  if (supp.size > 0) {
+    const before = recipients.length;
+    recipients = recipients.filter((r) => !supp.has(r.email.toLowerCase()));
+    const excluded = before - recipients.length;
+    if (excluded > 0) {
+      warnings.push(`${excluded} destinataire(s) exclu(s) : désinscrit(s) de ce compte (liste de suppression).`);
+    }
+    if (recipients.length === 0) {
+      throw new Error("Tous les destinataires sont désinscrits pour ce compte.");
+    }
+  }
+
   // Doublons (insensible à la casse) : on garde la 1re occurrence.
   const seen = new Set<string>();
   const unique = recipients.filter((r) => {
@@ -84,6 +107,13 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
   }
 
   const when = input.scheduledAt ? normalizeDate(input.scheduledAt) : sqliteNow();
+  const remaining = remainingQuota(account.id);
+  if (remaining !== null && recipients.length > remaining) {
+    warnings.push(
+      `Quota du compte épuisé dans ${remaining} envoi(s) : seuls les ${remaining} premiers partiront aujourd'hui, ` +
+      `le reste demain même heure (limites du fournisseur SMTP).`
+    );
+  }
   const { id } = createCampaign({
     name: input.name ?? input.subject.slice(0, 60),
     accountId: account.id,
@@ -92,6 +122,8 @@ export function queueCampaign(input: CampaignInput): CampaignOutcome {
     mode: input.mode,
     scheduledAt: when,
     unsubscribe: input.unsubscribe,
+    bodyFormat: input.bodyFormat,
+    followup: input.followup,
     recipients: recipients.map((r) => ({ email: r.email, vars: r.vars })),
   });
 

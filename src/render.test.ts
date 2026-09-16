@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   renderTemplate,
   textToHtml,
+  htmlToText,
   parseCsv,
   parseRecipientLines,
   findMissingVars,
@@ -57,6 +58,33 @@ test("textToHtml transforme une URL en lien", () => {
 test("textToHtml n'échappe pas deux fois les liens", () => {
   const html = textToHtml("https://exemple.fr/a<b");
   assert.ok(html.includes("&lt;b"));
+});
+
+// ---------- htmlToText ----------
+
+test("htmlToText dégrade un HTML simple en texte lisible", () => {
+  const text = htmlToText("<p>Bonjour Amélie,</p><p>Une question ?</p>");
+  assert.equal(text, "Bonjour Amélie,\nUne question ?");
+});
+
+test("htmlToText transforme <br> et <li> en retours/puces", () => {
+  const text = htmlToText("Ligne 1<br>Ligne 2<ul><li>un</li><li>deux</li></ul>");
+  assert.ok(text.includes("Ligne 1\nLigne 2"));
+  assert.ok(text.includes("• un"));
+});
+
+test("htmlToText retire style/script/commentaires et décode les entités", () => {
+  const text = htmlToText(
+    "<style>p{color:red}</style><!-- note --><p>A &amp; B &lt;ok&gt; &quot;cité&quot; &#39;apostrophe&#39;</p>"
+  );
+  assert.ok(!text.includes("color"));
+  assert.ok(!text.includes("note"));
+  assert.ok(text.includes("A & B <ok> \"cité\" 'apostrophe'"));
+});
+
+test("htmlToText compacte les blancs en excès", () => {
+  const text = htmlToText("<div>A</div>\n\n\n<div>B</div>");
+  assert.equal(text, "A\n\nB");
 });
 
 // ---------- parseCsv ----------

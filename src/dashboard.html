@@ -294,6 +294,10 @@ h2.form-h em{font-style:italic;color:var(--accent)}
           </div>
           <div class="field">
             <label for="corps">Corps du mail <span class="hint">les variables entre accolades sont remplacées pour chaque contact</span></label>
+            <div class="mode-toggle" style="margin-bottom:8px" role="group" aria-label="Format du corps">
+              <button class="on" type="button" data-format="text">Texte</button>
+              <button type="button" data-format="html">HTML</button>
+            </div>
             <textarea id="corps" placeholder="Bonjour {prenom},
 
 ..."></textarea>
@@ -309,14 +313,16 @@ h2.form-h em{font-style:italic;color:var(--accent)}
             <textarea id="dest" placeholder="amelie.fournier@of-lyon.fr ; Amélie Fournier ; entreprise=OF Lyon"></textarea>
             <div class="cap-note">
               <span id="destCount">0 destinataire</span>
-              <span>Maximum 100 par campagne</span>
+              <span>Maximum 500 par campagne</span>
             </div>
             <div class="warn-note" id="dupWarn"></div>
-            <div class="danger-note" id="capWarn">Le maximum par campagne est 100. Crée une seconde campagne pour les suivants.</div>
+            <div class="warn-note" id="quotaWarn"></div>
+            <div class="danger-note" id="capWarn">Le maximum par campagne est 500. Crée une seconde campagne pour les suivants.</div>
             <div class="preview-box" id="previewBox">
               <h4>Aperçu — comme Amélie le recevra</h4>
               <div class="pv-subject" id="pvSubject"></div>
               <pre id="pvText"></pre>
+              <iframe id="pvHtml" hidden style="width:100%;min-height:220px;border:none;background:#fff;border-radius:6px" sandbox="allow-same-origin"></iframe>
             </div>
           </div>
         </div>
@@ -340,12 +346,24 @@ h2.form-h em{font-style:italic;color:var(--accent)}
               <span class="why">+ header List-Unsubscribe — indispensable en cold email FR</span>
             </label>
           </div>
+          <div class="unsub-opt">
+            <input type="checkbox" id="fuOn">
+            <label for="fuOn">Relance automatique
+              <span class="why">follow-up envoyé N jours après, aux destinataires servis</span>
+            </label>
+          </div>
+          <div id="fuFields" hidden style="padding:4px 0 0">
+            <div class="field"><label for="fuDays">Relance après (jours)</label><input type="text" id="fuDays" value="3"></div>
+            <div class="field"><label for="fuSubject">Sujet de relance</label><input type="text" id="fuSubject" placeholder="Re : {sujet de la 1re campagne}"></div>
+            <div class="field" style="margin-bottom:0"><label for="fuBody">Corps de relance</label><textarea id="fuBody" style="min-height:80px" placeholder="Bonjour {prenom}, je me permets de remonter mon mail…"></textarea></div>
+          </div>
           <div class="rail-sep"></div>
           <h3>Récapitulatif</h3>
           <div class="recap-line"><span>Compte</span><b id="rAccount">—</b></div>
           <div class="recap-line"><span>Destinataires</span><b id="rCount">0</b></div>
           <div class="recap-line"><span>Mode</span><b id="rMode">personnalisé</b></div>
           <div class="recap-line"><span>Envoi</span><b id="rWhen">immédiat</b></div>
+          <div class="recap-line"><span>Quota restant</span><b id="rQuota">—</b></div>
           <div class="rail-sep"></div>
           <button class="btn btn-primary" id="sendBtn" type="button">Programmer l'envoi</button>
           <button class="btn btn-ghost" id="previewBtn" type="button" style="width:100%;margin-top:8px">Aperçu du mail</button>
@@ -398,6 +416,25 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         <h1>Tes <em>contacts</em></h1>
         <p>Des listes, des variables, zéro tableur à synchroniser.</p>
       </div>
+      <div class="section-h"><h2>Importer un <em>CSV</em></h2></div>
+      <div class="panel form-card" style="margin-bottom:6px">
+        <div class="row2">
+          <div class="field"><label for="impList">Nom de la liste</label><input type="text" id="impList" placeholder="Prospection OF"></div>
+          <div class="field"><label for="impFile">Fichier CSV <span class="hint">UTF-8 ou Windows-1252 détecté auto</span></label><input type="file" id="impFile" accept=".csv,text/csv,text/plain"></div>
+        </div>
+        <button class="btn btn-primary" id="impBtn" type="button">Importer la liste</button>
+      </div>
+      <div class="section-h"><h2>Désinscriptions <em id="suppCount" style="font-size:14px;color:var(--muted)"></em></h2></div>
+      <div class="panel form-card" style="margin-bottom:6px">
+        <div class="row2">
+          <div class="field"><label for="suppAcc">Compte envoyeur</label><select id="suppAcc"></select></div>
+          <div class="field"><label for="suppEmail">Email à désinscrire</label><input type="text" id="suppEmail" placeholder="contact@exemple.fr"></div>
+        </div>
+        <div class="field"><label for="suppReason">Motif <span class="hint">optionnel — ex : réponse STOP, bounce dur</span></label><input type="text" id="suppReason"></div>
+        <button class="btn btn-primary" id="suppAddBtn" type="button">Désinscrire</button>
+      </div>
+      <div class="panel" id="suppList"></div>
+      <div class="section-h"><h2>Listes de <em>contacts</em></h2></div>
       <div id="contactLists"></div>
     </section>
 
@@ -422,7 +459,8 @@ h2.form-h em{font-style:italic;color:var(--accent)}
           </div>
           <div class="field"><label for="pass">Mot de passe <span class="hint">mot de passe d'app pour Gmail</span></label><input type="password" id="pass"></div>
           <div class="field"><label for="fname">Nom affiché</label><input type="text" id="fname" placeholder="Mala"></div>
-          <div class="field"><label for="dcap">Limite quotidienne <span class="hint">0 = illimité — Gmail : ~500/jour</span></label><input type="text" id="dcap" placeholder="0"></div>
+          <div class="field"><label for="dcap">Limite quotidienne <span class="hint">vide = défaut (Gmail : 500/j) · 0 = illimité</span></label><input type="text" id="dcap" placeholder="auto"></div>
+          <div class="warn-note" id="gmailWarn">Gmail impose ses propres limites (pas MailPilot) : ~500 envois/jour en gratuit, ~2 000 en Workspace. Google peut bloquer temporairement le compte au-delà — un cap de 500/jour sera posé par défaut pour s'arrêter avant.</div>
           <button class="btn btn-primary" id="addAccountBtn" type="button">Ajouter le compte</button>
         </div>
       </div>
@@ -436,7 +474,7 @@ h2.form-h em{font-style:italic;color:var(--accent)}
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var state = { mode: "personalized", accounts: [], templates: [] };
+  var state = { mode: "personalized", format: "text", accounts: [], templates: [], quotas: [] };
 
   // ---------- Thème ----------
   var themeMode = "light";
@@ -470,7 +508,7 @@ h2.form-h em{font-style:italic;color:var(--accent)}
       $("view-" + item.dataset.view).classList.add("active");
       window.scrollTo(0,0);
       if(item.dataset.view === "campagnes") loadCampaigns();
-      if(item.dataset.view === "contacts") loadContacts();
+      if(item.dataset.view === "contacts"){ loadContacts(); loadSuppressions(); }
       if(item.dataset.view === "comptes") loadAccounts();
     });
   });
@@ -518,9 +556,12 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         var row = document.createElement("div");
         row.className = "recap-line";
         row.style.padding = "9px 0";
+        var quotaTxt = a.daily_cap > 0
+          ? " · " + (a.sent_today || 0) + "/" + a.daily_cap + " envoyés aujourd'hui"
+          : (a.sent_today ? " · " + a.sent_today + " envoyés aujourd'hui" : "");
         row.innerHTML = "<span><b style='font-family:Inter;font-size:13.5px'>" + esc(a.label) + "</b><br>" +
           "<span class='mono'>" + esc(a.user) + " · " + esc(a.host) + ":" + a.port +
-          (a.daily_cap > 0 ? " · cap " + a.daily_cap + "/j" : "") + "</span></span>" +
+          (a.daily_cap > 0 ? " · cap " + a.daily_cap + "/j" : " · illimité") + quotaTxt + "</span></span>" +
           "<button class='link-btn' type='button'>Test</button>";
         row.querySelector("button").addEventListener("click", function(){
           toast("Envoi du mail test…");
@@ -531,17 +572,30 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         });
         list.appendChild(row);
       });
+      // Comptes disponibles pour la désinscription (vue Contacts).
+      var suppAcc = $("suppAcc");
+      var cur = suppAcc.value;
+      suppAcc.innerHTML = "";
+      state.accounts.forEach(function(a){
+        var opt = document.createElement("option");
+        opt.value = String(a.id);
+        opt.textContent = a.label;
+        suppAcc.appendChild(opt);
+      });
+      suppAcc.value = cur;
     });
   }
 
   $("addAccountBtn").addEventListener("click", function(){
+    var capRaw = $("dcap").value.trim();
     var b = {
       label: $("lbl").value.trim(), host: $("host").value.trim(),
       port: parseInt($("port").value, 10) || 465,
       user: $("user").value.trim(), password: $("pass").value,
-      from_name: $("fname").value.trim(),
-      daily_cap: parseInt($("dcap").value, 10) || 0
+      from_name: $("fname").value.trim()
     };
+    // Cap vide → défaut selon l'hôte (Gmail : 500/jour).
+    if(capRaw !== "") b.daily_cap = parseInt(capRaw, 10) || 0;
     if(!b.label || !b.host || !b.user || !b.password){ toast("Libellé, serveur, utilisateur et mot de passe sont requis.", true); return; }
     post("/api/accounts", b).then(function(r){
       if(r.ok){ toast("Compte « " + b.label + " » ajouté."); $("lbl").value = $("host").value = $("user").value = $("pass").value = $("fname").value = $("dcap").value = ""; loadAccounts(); }
@@ -550,7 +604,7 @@ h2.form-h em{font-style:italic;color:var(--accent)}
   });
 
   // ---------- Composer ----------
-  document.querySelectorAll(".mode-toggle button").forEach(function(b){
+  document.querySelectorAll(".mode-toggle button[data-mode]").forEach(function(b){
     b.addEventListener("click", function(){
       b.parentNode.querySelectorAll("button").forEach(function(x){ x.classList.remove("on"); });
       b.classList.add("on");
@@ -568,11 +622,23 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     });
   });
 
+  // ---------- Format du corps (texte / HTML) ----------
+  document.querySelectorAll(".mode-toggle button[data-format]").forEach(function(b){
+    b.addEventListener("click", function(){
+      b.parentNode.querySelectorAll("button").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      state.format = b.dataset.format || "text";
+      $("corps").placeholder = state.format === "html"
+        ? "<p>Bonjour {prenom},</p>\n<p>une question sur votre organisme…</p>"
+        : "Bonjour {prenom},\n\n...";
+    });
+  });
+
   function countDest(){
     var lines = $("dest").value.split("\n").filter(function(l){ return l.trim(); });
     $("destCount").textContent = lines.length + (lines.length > 1 ? " destinataires" : " destinataire");
     $("rCount").textContent = String(lines.length);
-    $("capWarn").classList.toggle("show", lines.length > 100);
+    $("capWarn").classList.toggle("show", lines.length > 500);
     // Doublons (insensible à la casse) : la personne ne doit recevoir qu'un mail.
     var seen = {}, dup = 0;
     lines.forEach(function(l){
@@ -587,7 +653,10 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     return lines.length;
   }
   $("dest").addEventListener("input", countDest);
-  $("account").addEventListener("change", function(){ $("rAccount").textContent = $("account").value; });
+  $("account").addEventListener("change", function(){
+    $("rAccount").textContent = $("account").value;
+    updateQuotaLine();
+  });
   $("sujet").addEventListener("input", updateRecap);
   $("corps").addEventListener("input", updateRecap);
   $("when").addEventListener("change", updateRecap);
@@ -602,23 +671,59 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     } else {
       $("rWhen").textContent = "immédiat";
     }
+    updateQuotaLine();
   }
+
+  function updateQuotaLine(){
+    var q = (state.quotas || []).find(function(x){ return x.label === $("account").value; });
+    $("rQuota").textContent = !q ? "—"
+      : q.cap > 0 ? Math.max(0, q.remaining) + " / " + q.cap
+      : "illimité";
+    // Avertissement : plus de destinataires que de quota restant aujourd'hui.
+    var qw = $("quotaWarn");
+    var n = countDest();
+    if(q && q.cap > 0 && n > Math.max(0, q.remaining)){
+      qw.textContent = "Seuls " + Math.max(0, q.remaining) + " destinataire(s) partiront aujourd'hui (quota restant : " +
+        Math.max(0, q.remaining) + " / " + q.cap + ") — le reste partira demain même heure, limites du fournisseur SMTP.";
+      qw.classList.add("show");
+    } else {
+      qw.classList.remove("show");
+    }
+  }
+
+  // Avertissement limites Google quand l'hôte est Gmail.
+  $("host").addEventListener("input", function(){
+    $("gmailWarn").classList.toggle("show", /gmail|googlemail/i.test($("host").value));
+  });
+
+  $("fuOn").addEventListener("change", function(){
+    $("fuFields").hidden = !$("fuOn").checked;
+  });
 
   $("sendBtn").addEventListener("click", function(){
     var dest = $("dest").value;
     var n = countDest();
     if(n === 0){ toast("Ajoute au moins un destinataire.", true); return; }
-    if(n > 100){ toast("Maximum 100 destinataires par campagne.", true); return; }
+    if(n > 500){ toast("Maximum 500 destinataires par campagne.", true); return; }
     if(!$("sujet").value.trim()){ toast("Le sujet est vide.", true); return; }
     if(!$("corps").value.trim()){ toast("Le corps du mail est vide.", true); return; }
+    if($("fuOn").checked && (!$("fuSubject").value.trim() || !$("fuBody").value.trim())){
+      toast("Relance auto : le sujet et le corps de relance sont requis.", true); return;
+    }
     var payload = {
       account: $("account").value,
       subject: $("sujet").value,
       body: $("corps").value,
+      body_format: state.format,
       mode: state.mode,
       recipients: dest,
       unsubscribe: $("unsub").checked
     };
+    if($("fuOn").checked && $("fuBody").value.trim()){
+      payload.followup_days = parseInt($("fuDays").value, 10) || 0;
+      payload.followup_subject = $("fuSubject").value;
+      payload.followup_body = $("fuBody").value;
+    }
     if($("s2").checked && $("when").value){
       payload.scheduled_at = new Date($("when").value).toISOString();
     }
@@ -646,7 +751,8 @@ h2.form-h em{font-style:italic;color:var(--accent)}
     post("/api/preview", {
       subject: $("sujet").value,
       body: $("corps").value,
-      mode: state.mode
+      mode: state.mode,
+      body_format: state.format
     }).then(function(r){
       if(!r.ok){ toast(r.json.error || "Aperçu impossible.", true); return; }
       $("pvSubject").textContent = r.json.subject || "(sans sujet)";
@@ -655,6 +761,14 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         pv += "\n\n⚠️ Variables sans valeur : " + r.json.missing_vars.map(function(m){ return "{" + m + "}"; }).join(", ");
       }
       $("pvText").textContent = pv;
+      var frame = $("pvHtml");
+      if(state.format === "html" && r.json.html){
+        frame.hidden = false;
+        frame.srcdoc = r.json.html;
+      } else {
+        frame.hidden = true;
+        frame.srcdoc = "";
+      }
       $("previewBox").classList.add("show");
       $("previewBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -700,11 +814,27 @@ h2.form-h em{font-style:italic;color:var(--accent)}
   $("testBtn").addEventListener("click", function(){
     var acc = state.accounts.find(function(a){ return a.label === $("account").value; });
     if(!acc){ toast("Aucun compte sélectionné.", true); return; }
+    var hasContent = $("sujet").value.trim() || $("corps").value.trim();
     toast("Envoi du mail test…");
-    post("/api/accounts/" + acc.id + "/test", {}).then(function(r){
-      if(r.ok) toast(r.json.message || "Mail test envoyé.");
-      else toast(r.json.error || "Test impossible.", true);
-    });
+    if(hasContent){
+      // Test de rendu réel : le mail composé, avec variables d'exemple.
+      post("/api/send-test", {
+        account_id: acc.id,
+        subject: $("sujet").value,
+        body: $("corps").value,
+        mode: state.mode,
+        body_format: state.format
+      }).then(function(r){
+        if(r.ok) toast(r.json.message || "Mail test envoyé.");
+        else toast(r.json.error || "Test impossible.", true);
+      });
+    } else {
+      // Rien à prévisualiser : simple test de connexion SMTP.
+      post("/api/accounts/" + acc.id + "/test", {}).then(function(r){
+        if(r.ok) toast(r.json.message || "Mail test envoyé.");
+        else toast(r.json.error || "Test impossible.", true);
+      });
+    }
   });
 
   // ---------- Campagnes ----------
@@ -840,6 +970,74 @@ h2.form-h em{font-style:italic;color:var(--accent)}
         line.classList.add("off");
         $("daemonText").textContent = "Daemon éteint — lance npm start";
       }
+      state.quotas = res.json.accounts || [];
+      updateQuotaLine();
+    });
+  }
+
+  // ---------- Import CSV (fichier) + désinscriptions ----------
+  function readFileText(file){
+    return file.arrayBuffer().then(function(buf){
+      var utf8 = new TextDecoder("utf-8").decode(buf);
+      // Caractères de remplacement = le fichier n'est pas de l'UTF-8 : on tente Windows-1252.
+      if(utf8.indexOf("�") === -1) return utf8;
+      try { return new TextDecoder("windows-1252").decode(buf); }
+      catch(e){ return utf8; }
+    });
+  }
+
+  $("impBtn").addEventListener("click", function(){
+    var listName = $("impList").value.trim();
+    var file = $("impFile").files && $("impFile").files[0];
+    if(!listName){ toast("Donne un nom à la liste.", true); return; }
+    if(!file){ toast("Choisis un fichier CSV.", true); return; }
+    readFileText(file).then(function(text){
+      return post("/api/contacts/import", { list_name: listName, csv: text });
+    }).then(function(r){
+      if(r.ok){ toast(r.json.imported + " contact(s) importé(s) dans « " + listName + " »."); $("impFile").value = ""; loadContacts(); }
+      else toast(r.json.error || "Import impossible.", true);
+    });
+  });
+
+  $("suppAddBtn").addEventListener("click", function(){
+    var email = $("suppEmail").value.trim();
+    if(!email || email.indexOf("@") === -1){ toast("Renseigne un email valide.", true); return; }
+    post("/api/suppressions", {
+      account_id: parseInt($("suppAcc").value, 10),
+      email: email,
+      reason: $("suppReason").value.trim()
+    }).then(function(r){
+      if(r.ok){ toast(email + " est désinscrit de ce compte."); $("suppEmail").value = $("suppReason").value = ""; loadSuppressions(); }
+      else toast(r.json.error || "Désinscription impossible.", true);
+    });
+  });
+
+  function loadSuppressions(){
+    get("/api/suppressions").then(function(res){
+      if(!res.ok) return;
+      var rows = res.json;
+      $("suppCount").textContent = rows.length ? "(" + rows.length + ")" : "";
+      var host = $("suppList");
+      if(rows.length === 0){
+        host.innerHTML = "<div class='empty'>Aucune désinscription. Les emails ajoutés ici ne recevront plus rien de ce compte.</div>";
+        return;
+      }
+      host.innerHTML = "";
+      rows.forEach(function(s){
+        var row = document.createElement("div");
+        row.className = "contact-row";
+        row.innerHTML =
+          "<div class='who'><b>" + esc(s.email) + "</b><span>" + esc(s.account_label || "") +
+          (s.reason ? " · " + esc(s.reason) : "") + "</span></div>" +
+          "<button class='link-btn' type='button'>Réinscrire</button>";
+        row.querySelector("button").addEventListener("click", function(){
+          post("/api/suppressions/remove", { account_id: s.account_id, email: s.email }).then(function(r){
+            if(r.ok) loadSuppressions();
+            else toast(r.json.error || "Réinscription impossible.", true);
+          });
+        });
+        host.appendChild(row);
+      });
     });
   }
 

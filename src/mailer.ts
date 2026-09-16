@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { decrypt } from "./crypto.js";
-import { renderTemplate, textToHtml, type RecipientVars } from "./render.js";
+import { renderTemplate, textToHtml, htmlToText, type RecipientVars } from "./render.js";
 
 export type SmtpAccount = {
   id: number;
@@ -51,6 +51,13 @@ export function fromHeader(
 /**
  * Envoi séquentiel avec délai inter-mails (anti-spam), un mail par destinataire
  * (jamais de liste visible). Retourne les mises à jour à appliquer.
+ *
+ * `opts.remaining` : quota restant du compte aujourd'hui (null = illimité).
+ * Une fois le quota épuisé, l'envoi s'arrête — les destinataires restants
+ * demeurent `pending` et le scheduler replanifie la campagne à demain.
+ *
+ * `opts.bodyFormat` : "text" (défaut) → le corps est du texte et l'HTML est
+ * dérivé ; "html" → le corps EST du HTML et le texte en est dégradé.
  */
 export async function sendToRecipients(
   account: SmtpAccount,
@@ -60,7 +67,7 @@ export async function sendToRecipients(
   recipients: SendTarget[],
   delayMs: number,
   onResult: (email: string, ok: boolean, info: { messageId?: string; error?: string }) => void,
-  opts: { unsubscribe?: boolean } = {}
+  opts: { unsubscribe?: boolean; bodyFormat?: "text" | "html"; remaining?: number | null } = {}
 ): Promise<void> {
   const transport = createTransport(account);
   const from = fromHeader(account);
@@ -69,11 +76,20 @@ export async function sendToRecipients(
     headers["List-Unsubscribe"] = `<mailto:${account.user}?subject=Desinscription>`;
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
   }
+  const isHtml = opts.bodyFormat === "html";
+  let sentCount = 0;
 
   for (const r of recipients) {
+    if (opts.remaining != null && sentCount >= opts.remaining) break;
     const vars = mode === "personalized" ? r.vars : {};
     const subject = renderTemplate(subjectTpl, vars, r.name, r.email);
-    const text = renderTemplate(bodyTpl, vars, r.name, r.email) + (opts.unsubscribe ? unsubscribeFooter() : "");
+    const renderedBody = renderTemplate(bodyTpl, vars, r.name, r.email);
+    const text = isHtml
+      ? htmlToText(renderedBody) + (opts.unsubscribe ? unsubscribeFooter() : "")
+      : renderedBody + (opts.unsubscribe ? unsubscribeFooter() : "");
+    const html = isHtml
+      ? renderedBody + (opts.unsubscribe ? unsubscribeHtmlFooter() : "")
+      : textToHtml(text);
     // Erreurs temporaires : 2 tentatives supplémentaires (backoff 5 s puis 15 s).
     const delays = [0, 5000, 15000];
     let lastError = "";
@@ -86,15 +102,16 @@ export async function sendToRecipients(
           to: r.email,
           subject,
           text,
-          html: textToHtml(text),
+          html,
           headers,
         });
         onResult(r.email, true, { messageId: info.messageId });
         delivered = true;
+        sentCount += 1;
         break;
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
-        if (!isTransient(lastError)) break;
+        if (!isTransientError(lastError)) break;
       }
     }
     if (!delivered) onResult(r.email, false, { error: lastError });
@@ -105,11 +122,49 @@ export async function sendToRecipients(
   transport.close();
 }
 
-/** Erreurs SMTP/réseau qui méritent un nouvel essai. */
-function isTransient(error: string): boolean {
-  return /ECONNRESET|ETIMEDOUT|ESOCKET|EAI_AGAIN|ECONNREFUSED|connection|timeout|421|450|451/i.test(error);
+/** Erreurs SMTP/réseau qui méritent un nouvel essai (exporté pour l'auto-retry). */
+export function isTransientError(error: string): boolean {
+  return /ECONNRESET|ETIMEDOUT|ESOCKET|EAI_AGAIN|ECONNREFUSED|connection|timeout|421|450|451|452|454/i.test(error);
 }
 
 function unsubscribeFooter(): string {
   return "\n\n—\nVous recevez ce mail suite à un contact professionnel. Pour ne plus en recevoir, répondez « STOP » à ce mail.";
+}
+
+function unsubscribeHtmlFooter(): string {
+  return '<p style="margin-top:24px;padding-top:12px;border-top:1px solid #ddd;color:#666;font-size:12px">Vous recevez ce mail suite à un contact professionnel. Pour ne plus en recevoir, répondez « STOP » à ce mail.</p>';
+}
+
+/**
+ * Envoie le mail composé (sujet + corps, variables d'exemple) à la propre
+ * adresse du compte : test réel du rendu avant de lancer une campagne.
+ */
+export async function sendPreview(
+  account: SmtpAccount,
+  subject: string,
+  body: string,
+  mode: "common" | "personalized",
+  bodyFormat: "text" | "html",
+  sampleVars: Record<string, string> = {}
+): Promise<SendResult> {
+  const vars: RecipientVars = {
+    prenom: "Amélie",
+    nom: "Amélie Dufour",
+    email: "exemple@destinataire.fr",
+    ...sampleVars,
+  };
+  const name = vars["nom"] ?? "";
+  const email = vars["email"] ?? "";
+  const v = mode === "personalized" ? vars : {};
+  const subjectR = renderTemplate(subject, v, name, email);
+  const isHtml = bodyFormat === "html";
+  const bodyR = renderTemplate(body, v, name, email);
+  const info = await createTransport(account).sendMail({
+    from: fromHeader(account),
+    to: account.user,
+    subject: subjectR,
+    text: isHtml ? htmlToText(bodyR) : bodyR,
+    html: isHtml ? bodyR : textToHtml(bodyR),
+  });
+  return { email: account.user, ok: true, messageId: info.messageId };
 }

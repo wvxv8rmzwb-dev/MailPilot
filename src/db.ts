@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS recipients (
 CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON recipients(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status, scheduled_at);
 
+CREATE TABLE IF NOT EXISTS suppressions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES smtp_accounts(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(account_id, email)
+);
+
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS templates (
@@ -81,8 +90,40 @@ function addColumn(table: string, column: string, definition: string): void {
 }
 addColumn("smtp_accounts", "daily_cap", "INTEGER NOT NULL DEFAULT 0");
 addColumn("campaigns", "unsubscribe", "INTEGER NOT NULL DEFAULT 0");
+addColumn("campaigns", "body_format", "TEXT NOT NULL DEFAULT 'text'");
+addColumn("campaigns", "parent_id", "INTEGER");
+addColumn("campaigns", "followup_days", "INTEGER NOT NULL DEFAULT 0");
+addColumn("campaigns", "followup_subject", "TEXT");
+addColumn("campaigns", "followup_body", "TEXT");
+addColumn("campaigns", "auto_retries", "INTEGER NOT NULL DEFAULT 0");
 
-/** Crée une campagne + ses destinataires dans une transaction. Refuse > 100. */
+/** Cap par défaut selon l'hôte : Gmail plafonne à ~500 envois/jour côté serveur. */
+export function defaultDailyCap(host: string): number {
+  return /gmail|googlemail/i.test(host) ? 500 : 0;
+}
+
+/** Nombre d'envois réussis par ce compte depuis le début de la journée (UTC). */
+export function sentToday(accountId: number): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM recipients r JOIN campaigns cp ON cp.id = r.campaign_id
+       WHERE cp.account_id = ? AND r.status = 'sent' AND r.sent_at >= date('now')`
+    )
+    .get(accountId) as { n: number };
+  return row.n;
+}
+
+/** Quota restant aujourd'hui (null = illimité, cap 0). */
+export function remainingQuota(accountId: number): number | null {
+  const acc = db
+    .prepare("SELECT daily_cap FROM smtp_accounts WHERE id = ?")
+    .get(accountId) as { daily_cap: number } | undefined;
+  const cap = acc?.daily_cap ?? 0;
+  if (cap <= 0) return null;
+  return Math.max(0, cap - sentToday(accountId));
+}
+
+/** Crée une campagne + ses destinataires dans une transaction. Refuse > max (settings max_recipients, défaut 500). */
 export function createCampaign(input: {
   name: string;
   accountId: number;
@@ -91,9 +132,12 @@ export function createCampaign(input: {
   mode: "common" | "personalized";
   scheduledAt: string | null;
   unsubscribe?: boolean;
+  bodyFormat?: "text" | "html";
+  parentId?: number;
+  followup?: { days: number; subject: string; body: string } | null;
   recipients: { email: string; vars: Record<string, string> }[];
 }): { id: number } {
-  const max = Number(getSetting("max_recipients", "100"));
+  const max = Number(getSetting("max_recipients", "500"));
   if (input.recipients.length === 0) throw new Error("Aucun destinataire.");
   if (input.recipients.length > max) {
     throw new Error(
@@ -102,8 +146,10 @@ export function createCampaign(input: {
     );
   }
   const insertCampaign = db.prepare(`
-    INSERT INTO campaigns (name, account_id, subject, body, mode, status, scheduled_at, unsubscribe)
-    VALUES (@name, @accountId, @subject, @body, @mode, @status, @scheduledAt, @unsubscribe)
+    INSERT INTO campaigns (name, account_id, subject, body, mode, status, scheduled_at, unsubscribe,
+                           body_format, parent_id, followup_days, followup_subject, followup_body)
+    VALUES (@name, @accountId, @subject, @body, @mode, @status, @scheduledAt, @unsubscribe,
+            @bodyFormat, @parentId, @followupDays, @followupSubject, @followupBody)
   `);
   const insertRecipient = db.prepare(`
     INSERT INTO recipients (campaign_id, email, vars_json) VALUES (?, ?, ?)
@@ -119,6 +165,11 @@ export function createCampaign(input: {
       status,
       scheduledAt: input.scheduledAt,
       unsubscribe: input.unsubscribe ? 1 : 0,
+      bodyFormat: input.bodyFormat ?? "text",
+      parentId: input.parentId ?? null,
+      followupDays: input.followup?.days ?? 0,
+      followupSubject: input.followup?.subject ?? null,
+      followupBody: input.followup?.body ?? null,
     });
     const id = Number(res.lastInsertRowid);
     for (const r of input.recipients) {
@@ -197,4 +248,52 @@ export function listTemplates(): TemplateRow[] {
 
 export function deleteTemplate(id: number): boolean {
   return db.prepare("DELETE FROM templates WHERE id = ?").run(id).changes > 0;
+}
+
+// ---------- Suppressions (désinscriptions) ----------
+
+export type SuppressionRow = {
+  id: number;
+  account_id: number;
+  email: string;
+  reason: string;
+  created_at: string;
+};
+
+/** Ajoute un email à la liste de suppression d'un compte. False si déjà présent. */
+export function addSuppression(accountId: number, email: string, reason = ""): boolean {
+  return (
+    db
+      .prepare(
+        `INSERT INTO suppressions (account_id, email, reason) VALUES (?, ?, ?)
+         ON CONFLICT(account_id, email) DO NOTHING`
+      )
+      .run(accountId, email.trim().toLowerCase(), reason.trim()).changes > 0
+  );
+}
+
+export function listSuppressions(accountId?: number): SuppressionRow[] {
+  return (
+    accountId !== undefined
+      ? db
+          .prepare("SELECT id, account_id, email, reason, created_at FROM suppressions WHERE account_id = ? ORDER BY created_at DESC")
+          .all(accountId)
+      : db.prepare("SELECT id, account_id, email, reason, created_at FROM suppressions ORDER BY created_at DESC").all()
+  ) as SuppressionRow[];
+}
+
+export function removeSuppression(accountId: number, email: string): boolean {
+  return (
+    db
+      .prepare("DELETE FROM suppressions WHERE account_id = ? AND email = ?")
+      .run(accountId, email.trim().toLowerCase()).changes > 0
+  );
+}
+
+/** Emails désinscrits d'un compte (minuscules). */
+export function suppressedEmails(accountId: number): Set<string> {
+  const rows = db
+    .prepare("SELECT email FROM suppressions WHERE account_id = ?")
+    .all(accountId) as { email: string }[];
+  return new Set(rows.map((r) => r.email.toLowerCase()));
 }

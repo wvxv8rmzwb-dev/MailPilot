@@ -10,17 +10,20 @@ Envoi d'emails programmables en local, pilotable depuis Claude Code via MCP, ave
 
 - **Chaque destinataire reçoit son propre mail** (jamais de liste visible en `To`/`Cc`)
 - **Personnalisation par variables** : `{prenom}`, `{nom}`, `{entreprise}`... remplacées contact par contact
+- **Corps texte ou HTML complet** : fallback texte dégradé automatiquement, variables dans les deux
 - **Programmation** date/heure : le daemon envoie même session Claude Code fermée
-- **Cap 100 destinataires** par campagne (anti-spam), délai inter-envois par défaut 3 s
+- **Relances automatiques** : un follow-up part N jours après, aux destinataires servis
+- **Cap 500 destinataires** par campagne (réglable via `max_recipients`), délai inter-envois par défaut 3 s
 - **Doublons filtrés** : un même email ne reçoit qu'un seul mail par campagne
+- **Liste de suppressions** : un contact désinscrit est exclu automatiquement de toutes les campagnes et relances futures du compte
 - **Relance des échecs** : bouton « Relancer » (dashboard) ou `retry_failed_campaign` (MCP)
-- **Retry automatique** des erreurs réseau temporaires (backoff 5 s puis 15 s)
+- **Retry automatique** des erreurs réseau temporaires (backoff 5 s / 15 s in-send + un essai auto 15 min après un échec global temporaire)
 - **Désinscription** : mention en pied de mail + headers `List-Unsubscribe` (activée par défaut)
-- **Limite quotidienne par compte** (`daily_cap`) : le compte Gmail ne se fait pas bloquer
+- **Limite quotidienne par compte** (`daily_cap`, défaut 500 pour Gmail) : respectée **pendant** l'envoi — le surplus part demain, le compte ne se fait pas bloquer ; quota restant affiché
 - **Fenêtre d'envoi** : par défaut 08:00–20:00 en heure locale (clés `send_window_start`/`send_window_end`)
 - **Modèles réutilisables** : sauvegarde/recharge un sujet + corps en un clic
-- **Aperçu avant envoi** : comme Amélie le recevra, avec warning des variables vides
-- **Export CSV** de chaque campagne (qui a reçu quoi, quand, erreurs)
+- **Aperçu avant envoi** : comme Amélie le recevra, avec warning des variables vides + envoi test du rendu réel à soi-même
+- **Import CSV par fichier** (UTF-8 ou Windows-1252 détecté) et **export CSV** de chaque campagne (qui a reçu quoi, quand, erreurs)
 - **Mots de passe SMTP chiffrés** localement (AES-256-GCM), ne quittent jamais la machine
 
 ## Installation
@@ -48,17 +51,21 @@ Puis dans Claude Code, tout se pilote en langage naturel :
 
 | Outil | Rôle |
 |---|---|
-| `list_accounts` | comptes SMTP configurés |
+| `list_accounts` | comptes SMTP configurés + quota restant aujourd'hui |
 | `add_account` | ajouter un compte envoyeur (mot de passe chiffré) |
 | `test_account` | mail de test vers soi-même |
-| `send_now` | campagne immédiate (max 100) |
-| `schedule_campaign` | campagne planifiée (max 100) |
+| `send_test` | le mail composé (rendu réel) vers soi-même avant une campagne |
+| `send_now` | campagne immédiate (max 500) |
+| `schedule_campaign` | campagne planifiée (max 500) |
 | `preview_campaign` | aperçu du rendu avec variables d'exemple |
 | `list_campaigns` / `campaign_status` | suivi et erreurs |
 | `retry_failed_campaign` | remet les envois en échec dans la file |
 | `cancel_campaign` | annulation si pas encore parti |
+| `add_suppression` / `list_suppressions` / `remove_suppression` | désinscriptions par compte |
 | `save_template` / `list_templates` / `delete_template` | modèles de mails réutilisables |
 | `import_contacts` / `list_contacts` | listes de contacts (CSV) |
+
+`send_now` et `schedule_campaign` acceptent en plus : `body_format: "html"`, et `followup_days` + `followup_subject` + `followup_body` pour programmer la relance automatique.
 
 ## Service Windows (optionnel mais recommandé)
 

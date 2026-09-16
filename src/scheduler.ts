@@ -1,5 +1,5 @@
-import { db, getSetting, setSetting } from "./db.js";
-import { sendToRecipients, type SmtpAccount } from "./mailer.js";
+import { db, getSetting, setSetting, sentToday, remainingQuota, suppressedEmails, createCampaign } from "./db.js";
+import { sendToRecipients, isTransientError, type SmtpAccount } from "./mailer.js";
 
 type CampaignRow = {
   id: number;
@@ -8,6 +8,7 @@ type CampaignRow = {
   body: string;
   mode: "common" | "personalized";
   unsubscribe: number;
+  body_format: string;
 };
 
 type RecipientRow = {
@@ -51,11 +52,12 @@ export async function tick(): Promise<void> {
     if (!inSendWindow()) return;
     const due = db
       .prepare(
-        "SELECT id, account_id, subject, body, mode, unsubscribe FROM campaigns WHERE status = 'scheduled' AND scheduled_at <= datetime('now')"
+        `SELECT id, account_id, subject, body, mode, unsubscribe, body_format
+         FROM campaigns WHERE status = 'scheduled' AND scheduled_at <= datetime('now')`
       )
       .all() as CampaignRow[];
     for (const c of due) {
-      postponeIfDailyCapped(c);
+      if (postponeIfDailyCapped(c)) continue; // cap déjà atteint : repart demain
       await sendCampaign(c);
     }
   } finally {
@@ -78,23 +80,20 @@ export function inSendWindow(now = new Date()): boolean {
 /**
  * Cap quotidien du compte : si déjà atteint, la campagne attend demain même
  * heure (le compte SMTP risque un blocage au-delà de sa limite).
+ * Retourne true si la campagne a été repoussée.
  */
-function postponeIfDailyCapped(c: CampaignRow): void {
-  const cap = db
+function postponeIfDailyCapped(c: CampaignRow): boolean {
+  const acc = db
     .prepare("SELECT daily_cap FROM smtp_accounts WHERE id = ?")
     .get(c.account_id) as { daily_cap: number } | undefined;
-  const max = cap?.daily_cap ?? 0;
-  if (max <= 0) return;
-  const sent = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM recipients r JOIN campaigns cp ON cp.id = r.campaign_id
-       WHERE cp.account_id = ? AND r.status = 'sent' AND r.sent_at >= date('now')`
-    )
-    .get(c.account_id) as { n: number };
-  if (sent.n >= max) {
-    db.prepare("UPDATE campaigns SET scheduled_at = datetime(scheduled_at, '+1 day') WHERE id = ? AND status = 'scheduled'").run(c.id);
-    console.log(`Campagne #${c.id} : cap quotidien de ${max} atteint, repoussée à demain.`);
-  }
+  const max = acc?.daily_cap ?? 0;
+  if (max <= 0) return false;
+  if (sentToday(c.account_id) < max) return false;
+  db.prepare(
+    "UPDATE campaigns SET scheduled_at = datetime(scheduled_at, '+1 day') WHERE id = ? AND status = 'scheduled'"
+  ).run(c.id);
+  console.log(`Campagne #${c.id} : cap quotidien de ${max} atteint, repoussée à demain.`);
+  return true;
 }
 
 export async function sendCampaign(c: CampaignRow): Promise<void> {
@@ -144,21 +143,103 @@ export async function sendCampaign(c: CampaignRow): Promise<void> {
       if (ok) updOk.run(row.id);
       else updKo.run(info.error ?? "Erreur inconnue", row.id);
     },
-    { unsubscribe: c.unsubscribe === 1 }
+    { unsubscribe: c.unsubscribe === 1, bodyFormat: c.body_format === "html" ? "html" : "text", remaining: remainingQuota(c.account_id) }
   );
 
   const counts = db
     .prepare(
-      "SELECT SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed FROM recipients WHERE campaign_id = ?"
+      `SELECT SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+              SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending
+       FROM recipients WHERE campaign_id = ?`
     )
-    .get(c.id) as { sent: number | null; failed: number | null };
+    .get(c.id) as { sent: number | null; failed: number | null; pending: number | null };
+  const sent = counts.sent ?? 0;
   const failed = counts.failed ?? 0;
-  const status = counts.sent ? (failed ? "done" : "done") : "failed";
+  const pending = counts.pending ?? 0;
+
+  // Des destinataires n'ont pas été touchés : le quota s'est épuisé en cours
+  // d'envoi. La campagne repart demain (même heure) pour le reste.
+  if (pending > 0) {
+    db.prepare(
+      "UPDATE campaigns SET status = 'scheduled', scheduled_at = datetime(scheduled_at, '+1 day'), error = ? WHERE id = ?"
+    ).run(`${pending} envoi(s) reportés à demain : cap quotidien atteint.`, c.id);
+    console.log(`Campagne #${c.id} : cap quotidien atteint en cours d'envoi, ${pending} reporté(s) à demain.`);
+    return;
+  }
+
+  // Échec global d'origine temporaire (SMTP injoignable...) : un essai auto
+  // plus tard, sauf si le plafond d'essais est déjà atteint.
+  if (sent === 0 && failed > 0 && maybeAutoRetry(c.id)) return;
+
+  const status = sent ? "done" : "failed";
   db.prepare("UPDATE campaigns SET status = ?, error = ? WHERE id = ?").run(
     status,
     failed ? `${failed} envoi(s) en échec` : null,
     c.id
   );
+  if (sent > 0) scheduleFollowUp(c.id, c);
+}
+
+/**
+ * Un seul essai auto (réglable via settings max_auto_retries) si tous les
+ * échecs de la campagne sont d'origine temporaire. True si un essai est programmé.
+ */
+function maybeAutoRetry(campaignId: number): boolean {
+  const max = Number(getSetting("max_auto_retries", "1"));
+  const row = db.prepare("SELECT auto_retries FROM campaigns WHERE id = ?").get(campaignId) as
+    | { auto_retries: number }
+    | undefined;
+  if ((row?.auto_retries ?? 0) >= max) return false;
+  const errs = db
+    .prepare("SELECT error FROM recipients WHERE campaign_id = ? AND status = 'failed'")
+    .all(campaignId) as { error: string | null }[];
+  const allTransient = errs.length > 0 && errs.every((e) => isTransientError(e.error ?? ""));
+  if (!allTransient) return false;
+  db.transaction(() => {
+    db.prepare(
+      "UPDATE recipients SET status = 'pending', error = NULL, sent_at = NULL WHERE campaign_id = ? AND status = 'failed'"
+    ).run(campaignId);
+    db.prepare(
+      "UPDATE campaigns SET status = 'scheduled', scheduled_at = datetime('now', '+15 minutes'), auto_retries = auto_retries + 1, error = ? WHERE id = ?"
+    ).run("Échec temporaire (SMTP injoignable ?) : nouvel essai auto dans 15 min.", campaignId);
+  })();
+  console.log(`Campagne #${campaignId} : échec temporaire global, nouvel essai dans 15 min.`);
+  return true;
+}
+
+/** Programme la relance de la campagne auprès de ses destinataires servis. */
+function scheduleFollowUp(parentId: number, c: CampaignRow): void {
+  const follow = db
+    .prepare("SELECT followup_days, followup_subject, followup_body FROM campaigns WHERE id = ?")
+    .get(parentId) as { followup_days: number; followup_subject: string | null; followup_body: string | null } | undefined;
+  const days = follow?.followup_days ?? 0;
+  if (days <= 0 || !follow?.followup_subject || !follow?.followup_body) return;
+  const rows = db
+    .prepare("SELECT email, vars_json FROM recipients WHERE campaign_id = ? AND status = 'sent'")
+    .all(parentId) as { email: string; vars_json: string }[];
+  const supp = suppressedEmails(c.account_id);
+  const kept = rows.filter((r) => !supp.has(r.email.toLowerCase()));
+  if (kept.length === 0) return;
+  const when = inDays(days);
+  const { id } = createCampaign({
+    name: `Relance de la campagne #${parentId}`,
+    accountId: c.account_id,
+    subject: follow.followup_subject,
+    body: follow.followup_body,
+    mode: c.mode,
+    scheduledAt: when,
+    unsubscribe: c.unsubscribe === 1,
+    bodyFormat: c.body_format === "html" ? "html" : "text",
+    parentId,
+    recipients: kept.map((r) => ({ email: r.email, vars: safeVars(r.vars_json) })),
+  });
+  console.log(`Relance programmée : campagne #${id} (${kept.length} destinataire(s)) le ${when}.`);
+}
+
+/** Horodatage UTC "YYYY-MM-DD HH:MM:SS" dans N jours. */
+function inDays(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 19).replace("T", " ");
 }
 
 function safeVars(json: string): Record<string, string> {

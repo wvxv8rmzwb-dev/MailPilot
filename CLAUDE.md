@@ -2,6 +2,8 @@
 
 Outil local d'envoi d'emails programmables, connecté à Claude Code via MCP. Mascotte : Pilou 🐱.
 
+Fonctions : campagnes texte ou **HTML** (fallback texte auto), variables `{x}`, quota `daily_cap` respecté en cours d'envoi, liste de **suppressions** (désinscriptions) par compte, **relances auto** N jours après, retry auto des échecs temporaires, envoi test de rendu à soi-même, import CSV fichier (UTF-8/Windows-1252), export CSV des résultats.
+
 ## Architecture (2 processus, une SQLite WAL)
 
 - **Daemon** (`npm start`) : scheduler 15 s + dashboard Hono sur http://localhost:3777. C'est lui qui envoie — sans lui, rien ne part.
@@ -12,7 +14,7 @@ Outil local d'envoi d'emails programmables, connecté à Claude Code via MCP. Ma
 - **`data/` ne se commit jamais** (contient la base et la clé `.secret`). Déjà gitignored — ne pas désactiver.
 - **Les mots de passe SMTP (AES-256-GCM) ne sortent jamais** : aucun log, aucune réponse d'API/MCP, aucun exemple avec un vrai mot de passe.
 - **Dashboard en localhost uniquement** — n'ajouter aucune exposition réseau.
-- Cap 100 destinataires par campagne, format de ligne : `email ; nom ; cle=valeur`.
+- Cap 500 destinataires par campagne (settings `max_recipients`), format de ligne : `email ; nom ; cle=valeur`.
 
 ## Commandes
 
@@ -30,7 +32,11 @@ npm run service:install / service:uninstall   # service Windows (PowerShell admi
 - Le scheduler ne ramasse que `status = 'scheduled'` ; les campagnes `sending` orphelines sont reprises par `recoverOrphanedCampaigns()` au démarrage du daemon.
 - Fenêtre d'envoi 08:00–20:00 locale (settings `send_window_start`/`end`) — un test bloqué après 20h est normal, pas un bug.
 - Après un `TaskStop` du daemon, tuer l'orphelin qui tient le port : `netstat -ano | grep :3777` puis `taskkill //PID <pid> //F`.
-- Port 465 = SSL, 587 = STARTTLS. Gmail = 2FA + mot de passe d'application, daily_cap 500.
+- Port 465 = SSL, 587 = STARTTLS. Gmail = 2FA + mot de passe d'application.
+- **Quota (`daily_cap`)** : 0 = illimité ; vide à la création = 500 pour Gmail (`defaultDailyCap`). Respecté **pendant** l'envoi (`opts.remaining` dans `sendToRecipients`) : à épuisement, les destinataires restent `pending` et la campagne repart demain (`error` = "reportés à demain"). Ne pas retirer le `continue` après `postponeIfDailyCapped` dans `tick()`.
+- **Format HTML** (`campaigns.body_format`) : le corps EST du HTML, le texte est dégradé via `htmlToText` (render.ts) ; en mode `text` c'est l'inverse (`textToHtml`).
+- **Suppressions** (`add_suppression`/`remove_suppression`) : filtrées dans `queueCampaign` et à la création des relances — un désinscrit ne doit plus jamais recevoir de mail du compte.
+- **Relances auto** (`followup_days/subject/body` sur campaigns) : programmées par `scheduleFollowUp()` quand une campagne finit avec des envois `sent` ; ciblent les `sent` uniquement. `auto_retries` plafonne le retry auto des échecs temporaires globaux (settings `max_auto_retries`, défaut 1).
 
 ## Liens
 

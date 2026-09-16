@@ -63,6 +63,29 @@ export function textToHtml(text: string): string {
 
 export type ParsedContact = { email: string; name: string; vars: Record<string, string> };
 
+/** Degrade un corps HTML en texte brut (fallback des clients sans HTML). */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_m, d: string) => String.fromCodePoint(Number(d) || 63))
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /**
  * Parse un CSV de contacts (une ligne = un contact, séparateur ',' ou ';').
  * 1re ligne d'en-tête optionnelle : `email,nom,prenom,entreprise,...`

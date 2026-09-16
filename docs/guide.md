@@ -48,7 +48,9 @@ Dans le dashboard, onglet **Comptes SMTP** :
 | Port | `465` | `465` |
 | Utilisateur | toi@gmail.com | toi@tondomaine.fr |
 | Mot de passe | mot de passe d'application | mot de passe boîte |
-| Limite quotidienne | `500` (Gmail coupe au-delà) | selon ton offre |
+| Limite quotidienne | vide (Gmail : 500/jour posé automatiquement) | selon ton offre |
+
+> **Quota quotidien** : MailPilot compte les envois du jour par compte. Quand le cap est atteint — même au milieu d'une campagne — il s'arrête et reporte la suite à demain. Le quota restant s'affiche dans le récapitulatif du Composer et l'onglet Comptes.
 
 Clique **Ajouter le compte**, puis **Test** : un mail part vers ta propre adresse. S'il arrive, tout est bon. ✈️
 
@@ -71,22 +73,30 @@ Onglet **Composer** :
    amelie.fournier@of-lyon.fr ; Amélie Fournier ; entreprise=OF Lyon
    karim.benali@cfa-paris.fr ; Karim Benali ; entreprise=CFA Paris
    ```
-4. Clique **Aperçu du mail** pour voir le rendu comme Amélie le recevra — MailPilot te prévient si une variable manque (`{entreprise}` sans valeur restera vide).
+4. Clique **Aperçu du mail** pour voir le rendu comme Amélie le recevra — MailPilot te prévient si une variable manque (`{entreprise}` sans valeur restera vide). Tu peux aussi cliquer **Envoi test à moi-même** : le mail composé, avec des variables d'exemple, part vers ta propre adresse.
 5. **Programmer l'envoi** : immédiat, ou planifié à la date/heure de ton choix.
 
-Chaque contact reçoit **son propre mail individuel** — jamais de liste visible. L'envoi est séquentiel (3 s entre chaque mail) pour respecter les serveurs : une campagne de 100 contacts part en ~5 minutes.
+**Format HTML** : bascule le corps en HTML pour un rendu soigné (tableaux, styles, boutons). Le fallback texte est dégradé automatiquement pour les clients sans HTML, et les variables `{x}` restent remplaçées.
+
+**Relance automatique** : coche-la dans le rail, choisis un nombre de jours + un sujet et un corps de relance. Dès la campagne terminée, MailPilot programme le follow-up **aux destinataires qui ont bien reçu le premier mail** (les désinscrits en sont exclus automatiquement).
+
+Chaque contact reçoit **son propre mail individuel** — jamais de liste visible. L'envoi est séquentiel (3 s entre chaque mail) pour respecter les serveurs : une campagne de 500 contacts part en ~25 minutes, et le cap quotidien du compte coupe proprement si besoin (le reste part demain).
 
 **Par défaut** : mention de désinscription ajoutée en pied de mail + header `List-Unsubscribe` (obligatoire en cold email France, et bon signal pour les boîtes mail).
 
 ### Les listes de contacts
 
-Pour ne pas retaper tes contacts : onglet **Contacts**, ou via Claude Code `import_contacts` avec un CSV :
+Pour ne pas retaper tes contacts : onglet **Contacts** (import direct d'un fichier CSV, encodage UTF-8 ou Windows-1252 détecté automatiquement), ou via Claude Code `import_contacts` avec un CSV :
 
 ```csv
 email,nom,prenom,entreprise
 amelie.fournier@of-lyon.fr,Amélie Fournier,Amélie,OF Lyon
 karim.benali@cfa-paris.fr,Karim Benali,Karim,CFA Paris
 ```
+
+### Les désinscriptions
+
+Quand un contact répond « STOP » ou rebondit durablement, inscris-le dans **Contacts → Désinscriptions** (ou via Claude Code `add_suppression`). Il sera **exclu automatiquement de toutes les futures campagnes et relances** de ce compte — même s'il est présent dans une liste. Tu peux le réinscrire en un clic.
 
 ---
 
@@ -112,16 +122,17 @@ Les mails programmés partent **même si ta session Claude Code est fermée** : 
 
 ### Tous les outils MCP
 
-`list_accounts` · `add_account` · `test_account` · `send_now` · `schedule_campaign` · `preview_campaign` · `list_campaigns` · `campaign_status` · `retry_failed_campaign` · `cancel_campaign` · `save_template` · `list_templates` · `delete_template` · `import_contacts` · `list_contacts`
+`list_accounts` · `add_account` · `test_account` · `send_test` · `send_now` · `schedule_campaign` · `preview_campaign` · `list_campaigns` · `campaign_status` · `retry_failed_campaign` · `cancel_campaign` · `save_template` · `list_templates` · `delete_template` · `import_contacts` · `list_contacts` · `add_suppression` · `list_suppressions` · `remove_suppression`
 
 ---
 
 ## 5. Bien envoyer (délivrabilité)
 
-- **Gmail** : ~500 mails/jour maximum. Mets `daily_cap: 500` sur le compte : MailPilot repousse les campagnes au lendemain au lieu de te faire bloquer.
+- **Gmail** : les limites sont celles de Google (~500 mails/jour en gratuit, ~2 000 en Workspace — pas MailPilot). Le cap de 500/jour est posé automatiquement à la création du compte, et MailPilot respecte la limite **pendant** l'envoi : le surplus part le lendemain au lieu de te faire bloquer. Un avertissement s'affiche dans le formulaire dès que tu saisis un hôte Gmail.
+- **Domaine perso** (OVH, Zoho, ton propre SMTP) : **aucune limite imposée par MailPilot** (cap illimité par défaut) — configure quand même SPF, DKIM et DMARC avant d'envoyer en volume, et reste raisonnable avec ton hébergeur.
+- **Échecs temporaires** : erreur réseau ou SMTP injoignable au moment d'une campagne → MailPilot réessaie tout seul 15 minutes plus tard (une fois, réglable via `max_auto_retries` dans `settings`). Les échecs définitifs (boîte inexistante...) restent manuels : « Relancer les échecs ».
 - **Fenêtre d'envoi** : par défaut 08:00–20:00 (heure locale). Un mail programmé à minuit part au matin — c'est voulu, un mail reçu à 3h sent le robot. Modifiable via les clés `send_window_start` / `send_window_end` de la table `settings`.
 - **Délai inter-mails** : 3 s par défaut (`send_delay_ms`). Ne le descends pas trop.
-- **Domaine perso** : configure SPF, DKIM et DMARC avant d'envoyer en volume.
 - **Warm-up** : un compte neuf n'envoie pas 100 mails le premier jour. Monte progressivement (10, 25, 50...).
 - **Légal (France, LCEN/CGPR)** : mention de l'expéditeur + voie de désinscription obligatoires (activées par défaut). Cold email vers des particuliers sans opt-out : interdit. En B2B : respecte les oppositions.
 

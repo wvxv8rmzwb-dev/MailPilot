@@ -3,11 +3,11 @@ import { serve } from "@hono/node-server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate } from "./db.js";
+import { db, getSetting, retryFailedRecipients, saveTemplate, listTemplates, deleteTemplate, defaultDailyCap, sentToday, addSuppression, listSuppressions, removeSuppression } from "./db.js";
 import { encrypt } from "./crypto.js";
 import { queueCampaign } from "./campaigns.js";
-import { sendTest } from "./mailer.js";
-import { parseCsv, renderTemplate, textToHtml, findMissingVars, type RecipientVars } from "./render.js";
+import { sendTest, sendPreview } from "./mailer.js";
+import { parseCsv, parseRecipientLines, renderTemplate, textToHtml, htmlToText, findMissingVars, type RecipientVars } from "./render.js";
 import { startScheduler } from "./scheduler.js";
 
 const app = new Hono();
@@ -28,10 +28,19 @@ app.get("/api/status", (c) => {
   const due = db
     .prepare("SELECT COUNT(*) AS n FROM campaigns WHERE status = 'scheduled'")
     .get() as { n: number };
+  const accounts = db
+    .prepare("SELECT id, label, daily_cap FROM smtp_accounts ORDER BY id")
+    .all() as { id: number; label: string; daily_cap: number }[];
   return c.json({
     daemon_active: age < 90_000,
     scheduler_interval_ms: Number(getSetting("scheduler_interval_ms", "15000")),
     pending_campaigns: due.n,
+    accounts: accounts.map((a) => ({
+      label: a.label,
+      sent_today: sentToday(a.id),
+      cap: a.daily_cap,
+      remaining: a.daily_cap > 0 ? Math.max(0, a.daily_cap - sentToday(a.id)) : null,
+    })),
   });
 });
 
@@ -39,7 +48,12 @@ app.get("/api/status", (c) => {
 
 app.get("/api/accounts", (c) => {
   const rows = db
-    .prepare("SELECT id, label, host, port, secure, user, from_name, daily_cap, created_at FROM smtp_accounts ORDER BY id")
+    .prepare(
+      `SELECT a.id, a.label, a.host, a.port, a.secure, a.user, a.from_name, a.daily_cap, a.created_at,
+              (SELECT COUNT(*) FROM recipients r JOIN campaigns c2 ON c2.id = r.campaign_id
+               WHERE c2.account_id = a.id AND r.status = 'sent' AND r.sent_at >= date('now')) AS sent_today
+       FROM smtp_accounts a ORDER BY a.id`
+    )
     .all();
   return c.json(rows);
 });
@@ -53,6 +67,11 @@ app.post("/api/accounts", async (c) => {
     if (!b.label || !b.host || !b.user || !b.password) {
       return c.json({ error: "label, host, user et password sont obligatoires." }, 400);
     }
+    // Cap non renseigné : 500 pour Gmail (limite côté serveur), 0 (illimité) sinon.
+    const dailyCap =
+      b.daily_cap === undefined || b.daily_cap === null
+        ? defaultDailyCap(b.host)
+        : Math.max(0, Number(b.daily_cap) || 0);
     const res = db
       .prepare(
         "INSERT INTO smtp_accounts (label, host, port, secure, user, password_enc, from_name, daily_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
@@ -65,7 +84,7 @@ app.post("/api/accounts", async (c) => {
         b.user.trim(),
         encrypt(b.password),
         b.from_name?.trim() ?? "",
-        Math.max(0, Number(b.daily_cap) || 0)
+        dailyCap
       );
     return c.json({ id: Number(res.lastInsertRowid) }, 201);
   } catch (err) {
@@ -170,19 +189,24 @@ app.post("/api/send", async (c) => {
     const b = (await c.req.json()) as {
       account: string; subject: string; body: string;
       mode?: "common" | "personalized";
+      body_format?: "text" | "html";
       recipients?: string; list?: string; csv?: string;
       scheduled_at?: string | null; name?: string; unsubscribe?: boolean;
+      followup_days?: number; followup_subject?: string; followup_body?: string;
     };
     if (!b.account || !b.subject || !b.body) {
       return c.json({ error: "account, subject et body sont obligatoires." }, 400);
     }
+    const followup = normalizeFollowup(b.followup_days, b.followup_subject, b.followup_body);
     const out = queueCampaign({
       accountLabel: b.account,
       subject: b.subject,
       body: b.body,
       mode: b.mode ?? "personalized",
+      bodyFormat: b.body_format === "html" ? "html" : "text",
       scheduledAt: b.scheduled_at || null,
       unsubscribe: b.unsubscribe,
+      followup,
       recipientsText: b.recipients,
       listName: b.list,
       csvText: b.csv,
@@ -194,12 +218,49 @@ app.post("/api/send", async (c) => {
   }
 });
 
+/** Valide les paramètres de relance auto : days > 0 exige un sujet et un corps. */
+function normalizeFollowup(
+  days?: number, subject?: string, body?: string
+): { days: number; subject: string; body: string } | null {
+  const d = Math.floor(Number(days) || 0);
+  if (d <= 0) return null;
+  if (!subject?.trim() || !body?.trim()) {
+    throw new Error("Relance auto : followup_subject et followup_body sont requis avec followup_days.");
+  }
+  return { days: d, subject, body };
+}
+
+// ---------- Envoi test ----------
+
+/** Envoie le mail composé (avec variables d'exemple) à la propre adresse du compte. */
+app.post("/api/send-test", async (c) => {
+  try {
+    const b = (await c.req.json()) as {
+      account_id?: number; subject: string; body: string;
+      mode?: "common" | "personalized"; body_format?: "text" | "html";
+      sample_vars?: Record<string, string>;
+    };
+    if (!b.account_id || (!b.subject?.trim() && !b.body?.trim())) {
+      return c.json({ error: "account_id et au moins un sujet ou corps sont requis." }, 400);
+    }
+    const account = db
+      .prepare("SELECT * FROM smtp_accounts WHERE id = ?")
+      .get(b.account_id) as Parameters<typeof sendPreview>[0] | undefined;
+    if (!account) return c.json({ error: "Compte introuvable." }, 404);
+    await sendPreview(account, b.subject ?? "", b.body ?? "", b.mode ?? "personalized", b.body_format === "html" ? "html" : "text", b.sample_vars ?? {});
+    return c.json({ ok: true, message: `Mail test (rendu réel) envoyé à ${account.user}.` });
+  } catch (err) {
+    return c.json({ error: msg(err) }, 502);
+  }
+});
+
 // ---------- Aperçu ----------
 
 /** Rendu du mail avec des variables d'exemple, avant envoi. */
 app.post("/api/preview", async (c) => {
   const b = (await c.req.json()) as {
-    subject: string; body: string; mode?: "common" | "personalized"; sample_vars?: Record<string, string>;
+    subject: string; body: string; mode?: "common" | "personalized";
+    body_format?: "text" | "html"; sample_vars?: Record<string, string>;
   };
   const vars: RecipientVars = { prenom: "Amélie", nom: "Amélie Dufour", email: "exemple@destinataire.fr", ...(b.sample_vars ?? {}) };
   const name = vars["nom"] ?? "";
@@ -207,9 +268,15 @@ app.post("/api/preview", async (c) => {
   const mode = b.mode ?? "personalized";
   const v = mode === "personalized" ? vars : {};
   const subject = renderTemplate(b.subject ?? "", v, name, email);
-  const text = renderTemplate(b.body ?? "", v, name, email);
+  const isHtml = b.body_format === "html";
+  const body = renderTemplate(b.body ?? "", v, name, email);
   const missing = findMissingVars(`${b.subject ?? ""}\n${b.body ?? ""}`, [{ name, email, vars }]);
-  return c.json({ subject, text, html: textToHtml(text), missing_vars: mode === "personalized" ? missing : [] });
+  return c.json({
+    subject,
+    text: isHtml ? htmlToText(body) : body,
+    html: isHtml ? body : textToHtml(body),
+    missing_vars: mode === "personalized" ? missing : [],
+  });
 });
 
 // ---------- Modèles ----------
@@ -258,7 +325,9 @@ app.post("/api/contacts/import", async (c) => {
     if (!b.list_name || !b.csv) {
       return c.json({ error: "list_name et csv sont obligatoires." }, 400);
     }
-    const contacts = parseCsv(b.csv);
+    // CSV d'abord ; si rien de valide, tente le format lignes `email ; nom ; cle=valeur`.
+    let contacts = parseCsv(b.csv);
+    if (contacts.length === 0) contacts = parseRecipientLines(b.csv);
     if (contacts.length === 0) {
       return c.json({ error: "Aucun contact valide trouvé dans le CSV." }, 400);
     }
@@ -274,6 +343,39 @@ app.post("/api/contacts/import", async (c) => {
   } catch (err) {
     return c.json({ error: msg(err) }, 400);
   }
+});
+
+// ---------- Suppressions (désinscriptions) ----------
+
+app.get("/api/suppressions", (c) => {
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.account_id, s.email, s.reason, s.created_at, a.label AS account_label
+       FROM suppressions s JOIN smtp_accounts a ON a.id = s.account_id
+       ORDER BY s.created_at DESC`
+    )
+    .all();
+  return c.json(rows);
+});
+
+app.post("/api/suppressions", async (c) => {
+  const b = (await c.req.json()) as { account_id?: number; email?: string; reason?: string };
+  if (!b.account_id || !b.email?.includes("@")) {
+    return c.json({ error: "account_id et un email valide sont obligatoires." }, 400);
+  }
+  const account = db.prepare("SELECT id FROM smtp_accounts WHERE id = ?").get(b.account_id);
+  if (!account) return c.json({ error: "Compte introuvable." }, 404);
+  const created = addSuppression(b.account_id, b.email, b.reason ?? "");
+  return c.json({ ok: true, created });
+});
+
+app.post("/api/suppressions/remove", async (c) => {
+  const b = (await c.req.json()) as { account_id?: number; email?: string };
+  if (!b.account_id || !b.email) {
+    return c.json({ error: "account_id et email sont obligatoires." }, 400);
+  }
+  const removed = removeSuppression(b.account_id, b.email);
+  return c.json({ ok: true, removed });
 });
 
 // ---------- Démarrage ----------
