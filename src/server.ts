@@ -35,6 +35,27 @@ app.get("/vendor/gsap.min.js", (c) => {
   }
 });
 
+// Polices servies localement (idem : hors-ligne, le design reste identique).
+const FONTS: Record<string, string> = {
+  "inter-var.woff2": "font/woff2",
+  "plexmono-400.woff2": "font/woff2",
+  "plexmono-500.woff2": "font/woff2",
+  "instrumentserif-400.woff2": "font/woff2",
+  "instrumentserif-italic.woff2": "font/woff2",
+};
+app.get("/fonts/:name", (c) => {
+  const name = c.req.param("name");
+  const type = FONTS[name];
+  if (!type) return new Response("", { status: 404 });
+  try {
+    return new Response(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "fonts", name)), {
+      headers: { "Content-Type": type, "Cache-Control": "max-age=604800" },
+    });
+  } catch {
+    return new Response("", { status: 404 });
+  }
+});
+
 // ---------- Statut ----------
 
 app.get("/api/status", (c) => {

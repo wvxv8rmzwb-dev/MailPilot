@@ -4,27 +4,51 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MailPilot Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* ---------- Polices locales (hors-ligne) ---------- */
+@font-face{
+  font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;
+  src:url("/fonts/inter-var.woff2") format("woff2");
+}
+@font-face{
+  font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
+  src:url("/fonts/plexmono-400.woff2") format("woff2");
+}
+@font-face{
+  font-family:"IBM Plex Mono";font-style:normal;font-weight:500;font-display:swap;
+  src:url("/fonts/plexmono-500.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Instrument Serif";font-style:normal;font-weight:400;font-display:swap;
+  src:url("/fonts/instrumentserif-400.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Instrument Serif";font-style:italic;font-weight:400;font-display:swap;
+  src:url("/fonts/instrumentserif-italic.woff2") format("woff2");
+}
 :root{
   --paper:#ffffff; --paper2:#f4f4f3; --ink:#010100; --muted:#75757d; --border:#e6e5e3;
   --accent:#2a2ecd; --accent-text:#fff; --accent-soft:#ebe9fb;
   --ok:#1a7f4e; --ok-soft:#e2f1e8; --warn:#a16207; --warn-soft:#f6eeda;
   --err:#b3372e; --err-soft:#f8e6e4; --grid:rgba(0,0,0,.04); --field:#ffffff;
+  --shadow:0 1px 2px rgba(23,23,68,.04), 0 6px 20px -8px rgba(23,23,68,.09);
+  --shadow-lift:0 2px 4px rgba(23,23,68,.05), 0 12px 28px -8px rgba(23,23,68,.16);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
   --accent:#feca04; --accent-text:#111100; --accent-soft:#2b2410;
   --ok:#4cc38a; --ok-soft:#182720; --warn:#e0a33e; --warn-soft:#2b2413;
   --err:#e5655c; --err-soft:#31201e; --grid:rgba(255,255,255,.05); --field:#1a1a1f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px -8px rgba(0,0,0,.45);
+  --shadow-lift:0 2px 4px rgba(0,0,0,.35), 0 12px 28px -8px rgba(0,0,0,.55);
 }}
 :root[data-theme="dark"]{
   --paper:#101013; --paper2:#18181c; --ink:#f4f3f0; --muted:#9c9ca4; --border:#2a2a30;
   --accent:#feca04; --accent-text:#111100; --accent-soft:#2b2410;
   --ok:#4cc38a; --ok-soft:#182720; --warn:#e0a33e; --warn-soft:#2b2413;
   --err:#e5655c; --err-soft:#31201e; --grid:rgba(255,255,255,.05); --field:#1a1a1f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px -8px rgba(0,0,0,.45);
+  --shadow-lift:0 2px 4px rgba(0,0,0,.35), 0 12px 28px -8px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{height:100%}
@@ -77,7 +101,7 @@ body::before{
 .page-head h1{font-family:"Instrument Serif",serif;font-weight:400;font-size:34px;letter-spacing:-.01em;line-height:1.1}
 .page-head h1 em{font-style:italic;color:var(--accent)}
 .page-head p{color:var(--muted);font-size:13.5px;margin-top:6px}
-.panel{background:var(--paper);border:1px solid var(--border);border-radius:14px}
+.panel{background:var(--paper);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow)}
 .view{display:none}.view.active{display:block}
 
 /* Composer */
@@ -88,10 +112,14 @@ body::before{
 .field .hint{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
 input[type=text],input[type=email],input[type=password],input[type=datetime-local],select,textarea{
   width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;
-  background:var(--field);color:var(--ink);font:inherit;font-size:14px;transition:border-color .15s;
+  background:var(--field);color:var(--ink);font:inherit;font-size:14px;
+  transition:border-color .15s,box-shadow .15s;
 }
 textarea{resize:vertical;min-height:130px;line-height:1.55;font-family:"IBM Plex Mono",monospace;font-size:12.6px}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+input:hover,select:hover,textarea:hover{border-color:var(--muted)}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;align-items:center}
 .chip{
@@ -149,15 +177,29 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .sched-opt label{font-size:13.5px;font-weight:500;cursor:pointer}
 .sched-opt .when{display:block;font-size:12px;color:var(--muted)}
 .recap-line{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13.5px;color:var(--muted)}
-.recap-line b{font-weight:500;color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:12.5px;text-align:right}
+.recap-line b{font-weight:500;color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+/* Jauge de quota */
+.quota-gauge{display:flex;align-items:center;gap:14px;padding:12px 0 10px}
+.quota-gauge svg{width:64px;height:64px;flex:none}
+.qg-track{stroke:var(--border);stroke-width:7;fill:none}
+.qg-fill{
+  stroke:var(--accent);stroke-width:7;fill:none;stroke-linecap:round;
+  transform:rotate(-90deg);transform-origin:center;
+  stroke-dasharray:163.36;stroke-dashoffset:163.36;transition:opacity .3s;
+}
+.qg-fill.none{opacity:0}
+.qg-fill.low{stroke:var(--warn)}
+.qg-num{font-family:"Instrument Serif",serif;font-size:20px;fill:var(--ink)}
+.qg-label{font-size:12px;color:var(--muted);line-height:1.5}
+.qg-label b{display:block;color:var(--ink);font-size:12.5px;font-weight:600}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;
   border-radius:99px;border:none;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;
-  transition:opacity .15s,transform .1s;
+  transition:box-shadow .18s,transform .12s,opacity .15s,background .15s,color .15s,border-color .15s;
 }
-.btn:active{transform:scale(.98)}
+.btn:active{transform:scale(.97)}
 .btn-primary{background:var(--accent);color:var(--accent-text);width:100%}
-.btn-primary:hover{opacity:.88}
+.btn-primary:hover{box-shadow:0 6px 18px -4px color-mix(in srgb, var(--accent) 45%, transparent);transform:translateY(-1px)}
 .btn-ghost{background:none;border:1px solid var(--border);color:var(--muted);font-weight:500}
 .btn-ghost:hover{color:var(--ink);border-color:var(--ink)}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -171,8 +213,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
 
 /* Stats */
 .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
-.stat{padding:16px 20px}
-.stat b{font-family:"Instrument Serif",serif;font-size:34px;font-weight:400;line-height:1}
+.stat{padding:16px 20px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s}
+.stat::before{
+  content:"";position:absolute;left:20px;bottom:0;width:28px;height:3px;border-radius:99px 99px 0 0;
+  background:var(--accent);opacity:.85;
+}
+.stat:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.stat b{font-family:"Instrument Serif",serif;font-size:34px;font-weight:400;line-height:1;display:block}
 .stat span{display:block;color:var(--muted);font-size:12.5px;margin-top:5px}
 
 /* Table */
@@ -199,7 +246,8 @@ td .mono{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)
 .prog-num{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace;margin-top:4px}
 .link-btn{background:none;border:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;font-weight:500;padding:0}
 .link-btn:hover{text-decoration:underline}
-.empty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13.5px}
+.empty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.6}
+.empty .empty-cat{width:44px;height:auto;margin:0 auto 8px;display:block;opacity:.45}
 
 /* Contacts */
 .section-h{display:flex;justify-content:space-between;align-items:center;margin:28px 0 12px}
@@ -395,7 +443,14 @@ input[type=file]::file-selector-button:hover{border-color:var(--accent);color:va
           <div class="recap-line"><span>Destinataires</span><b id="rCount">0</b></div>
           <div class="recap-line"><span>Mode</span><b id="rMode">personnalisé</b></div>
           <div class="recap-line"><span>Envoi</span><b id="rWhen">immédiat</b></div>
-          <div class="recap-line"><span>Quota restant</span><b id="rQuota">—</b></div>
+          <div class="quota-gauge">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="qg-track" cx="32" cy="32" r="26"/>
+              <circle class="qg-fill" id="qgFill" cx="32" cy="32" r="26"/>
+              <text class="qg-num" id="qgNum" x="32" y="37" text-anchor="middle">—</text>
+            </svg>
+            <div class="qg-label"><b id="qgTitle">Quota du jour</b><span id="qgSub">choisis un compte</span></div>
+          </div>
           <div class="rail-sep"></div>
           <button class="btn btn-primary" id="sendBtn" type="button">Programmer l'envoi</button>
           <button class="btn btn-ghost" id="previewBtn" type="button" style="width:100%;margin-top:8px">Aperçu du mail</button>
@@ -438,7 +493,7 @@ input[type=file]::file-selector-button:hover{border-color:var(--accent);color:va
           <thead><tr><th>Campagne</th><th>Statut</th><th>Programmé</th><th>Progression</th><th></th></tr></thead>
           <tbody id="campaignRows"></tbody>
         </table>
-        <div class="empty" id="campaignEmpty" hidden>Aucune campagne pour l'instant. Compose la première !</div>
+        <div class="empty" id="campaignEmpty" hidden><svg class="empty-cat" viewBox="0 0 64 64" aria-hidden="true"><path d="M13 26 9 5l19 10z" fill="currentColor"/><path d="M51 26 55 5 36 15z" fill="currentColor"/><circle cx="32" cy="38" r="24" fill="currentColor"/><rect x="8" y="25" width="48" height="7" rx="3.5" fill="var(--accent)"/><circle cx="21" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/><circle cx="43" cy="31" r="8.5" fill="var(--paper)" stroke="var(--accent)" stroke-width="3.5"/></svg>Aucune campagne pour l'instant. Compose la première !</div>
       </div>
     </section>
 
@@ -596,8 +651,26 @@ lien_calendly = https://cal.com/amelie"></textarea>
     if(!hasGsap || prefersReduced()) return;
     var m = document.querySelector(".mascot");
     if(!m) return;
+    gsap.killTweensOf(m, "rotation");
     gsap.fromTo(m, { rotation: -3 }, { rotation: 3, duration: 0.12, repeat: 5, yoyo: true,
-      ease: "sine.inOut", clearProps: "transform" });
+      ease: "sine.inOut", clearProps: "rotation" });
+  }
+  /** Pilou flotte doucement en continu (démarre une fois, au chargement). */
+  function floatMascot(){
+    if(!hasGsap || prefersReduced()) return;
+    var m = document.querySelector(".mascot");
+    if(!m) return;
+    gsap.to(m, { y: -6, duration: 2.4, ease: "sine.inOut", yoyo: true, repeat: -1 });
+  }
+  /** Cascade d'entrée des lignes d'un tableau/liste fraîchement rendues. */
+  function staggerIn(targets){
+    if(!hasGsap || prefersReduced()) return;
+    if(!targets || !targets.length) return;
+    gsap.killTweensOf(targets);
+    gsap.fromTo(targets, { y: 8, autoAlpha: 0 }, {
+      y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out",
+      stagger: 0.03, overwrite: "auto", clearProps: "all"
+    });
   }
 
   // ---------- Thème ----------
@@ -629,6 +702,10 @@ lien_calendly = https://cal.com/amelie"></textarea>
       document.querySelectorAll(".nav-item").forEach(function(n){ n.classList.remove("active"); });
       document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
       item.classList.add("active");
+      if(hasGsap && !prefersReduced()){
+        gsap.killTweensOf(item, "scale");
+        gsap.fromTo(item, { scale: 0.94 }, { scale: 1, duration: 0.3, ease: "back.out(2.2)", clearProps: "all" });
+      }
       var view = $("view-" + item.dataset.view);
       view.classList.add("active");
       animateView(view);
@@ -863,11 +940,33 @@ lien_calendly = https://cal.com/amelie"></textarea>
     updateQuotaLine();
   }
 
+  var QG_CIRC = 163.36; // circonférence du ring (r=26)
   function updateQuotaLine(){
+    var fill = $("qgFill"), num = $("qgNum"), sub = $("qgSub");
     var q = (state.quotas || []).find(function(x){ return x.label === $("account").value; });
-    $("rQuota").textContent = !q ? "—"
-      : q.cap > 0 ? Math.max(0, q.remaining) + " / " + q.cap
-      : "illimité";
+    function setRing(pct){ // pct 0..1 (part du quota restant), null = illimité
+      var target = pct === null ? 0 : QG_CIRC * (1 - Math.max(0, Math.min(1, pct)));
+      if(hasGsap && !prefersReduced()){
+        gsap.killTweensOf(fill, "strokeDashoffset");
+        gsap.to(fill, { strokeDashoffset: target, duration: 0.6, ease: "power2.out" });
+      } else {
+        fill.style.strokeDashoffset = String(target);
+      }
+      fill.classList.toggle("low", pct !== null && pct < 0.15);
+    }
+    if(!q){
+      num.textContent = "—"; sub.textContent = "choisis un compte"; setRing(0);
+      fill.classList.remove("low"); fill.classList.add("none");
+    } else if(q.cap > 0){
+      var rem = Math.max(0, q.remaining);
+      fill.classList.remove("none");
+      setRing(rem / q.cap);
+      num.textContent = String(rem); sub.textContent = rem + " restant(s) sur " + q.cap;
+    } else {
+      fill.classList.remove("none");
+      setRing(null);
+      num.textContent = "∞"; sub.textContent = "illimité (domaine perso)";
+    }
     // Avertissement : plus de destinataires que de quota restant aujourd'hui.
     var qw = $("quotaWarn");
     var n = countDest();
@@ -1100,6 +1199,7 @@ lien_calendly = https://cal.com/amelie"></textarea>
       countUp($("stToday"), today);
       countUp($("stPending"), pending);
       countUp($("stFailed"), failed);
+      staggerIn(tbody.children);
     });
   }
 
@@ -1123,7 +1223,7 @@ lien_calendly = https://cal.com/amelie"></textarea>
       host.innerHTML = "";
       var names = Object.keys(lists);
       if(names.length === 0){
-        host.innerHTML = "<div class='panel empty'>Aucune liste. Importe un CSV via Claude Code (import_contacts) ou ajoute des contacts.</div>";
+        host.innerHTML = "<div class='panel empty'><svg class='empty-cat' viewBox='0 0 64 64' aria-hidden='true'><path d='M13 26 9 5l19 10z' fill='currentColor'/><path d='M51 26 55 5 36 15z' fill='currentColor'/><circle cx='32' cy='38' r='24' fill='currentColor'/><rect x='8' y='25' width='48' height='7' rx='3.5' fill='var(--accent)'/><circle cx='21' cy='31' r='8.5' fill='var(--paper)' stroke='var(--accent)' stroke-width='3.5'/><circle cx='43' cy='31' r='8.5' fill='var(--paper)' stroke='var(--accent)' stroke-width='3.5'/></svg>Aucune liste. Importe un CSV via Claude Code (import_contacts) ou ajoute des contacts.</div>";
         return;
       }
       names.forEach(function(listName){
@@ -1153,6 +1253,7 @@ lien_calendly = https://cal.com/amelie"></textarea>
         });
         host.appendChild(panel);
       });
+      staggerIn(host.querySelectorAll(".section-h, .panel"));
     });
   }
 
@@ -1394,6 +1495,8 @@ lien_calendly = https://cal.com/amelie"></textarea>
   loadStatus();
   loadVars();
   loadSuppressions();
+  updateQuotaLine();
+  floatMascot();
   animateView(document.querySelector(".view.active"));
   setInterval(loadStatus, 8000);
   setInterval(function(){

@@ -41,7 +41,7 @@ npm run service:install / service:uninstall   # service Windows (PowerShell admi
 - **Pièces jointes** : `attachments_json` sur campaigns = [{filename, path}] ; fichiers réellement écrits dans `data/attachments/<id>/` (base64 reçu de l'API, 10 Mo max total, noms neutralisés).
 - **IMAP** (`src/imap.ts`) : ne traite que les messages **non lus**, les marque lus ensuite ; bounce doux (4.x.x, boîte pleine) → ignoré, dur (5.x.x, user unknown) → suppression. Config IMAP par compte : `imap_host` vide = désactivé.
 - `MAILPILOT_DATA_DIR` (env) redirige `data/` — utilisé par les tests (base isolée), jamais sur la vraie install.
-- GSAP est servi localement via `/vendor/gsap.min.js` (node_modules/gsap) — pas de CDN, le dashboard doit marcher hors-ligne.
+- GSAP **et les polices** (woff2 dans `src/fonts/`, route `/fonts/:name`) sont servis localement — pas de CDN, le dashboard doit marcher hors-ligne.
 
 ## Liens
 
